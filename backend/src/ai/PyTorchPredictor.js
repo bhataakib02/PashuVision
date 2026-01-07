@@ -279,8 +279,8 @@ class PyTorchPredictor {
 
   async detectSpecies(imageBuffer) {
     try {
-      // Use Python service if available
-      if (this.usePythonService) {
+      // PRIORITY 1: Use Python service species endpoint if model exists
+      if (fs.existsSync(this.modelPathPth)) {
         try {
           const formData = new FormData();
           formData.append('image', imageBuffer, {
@@ -295,27 +295,29 @@ class PyTorchPredictor {
 
           if (response.ok) {
             const data = await response.json();
-            return {
-              species: data.species || 'cattle_or_buffalo',
-              confidence: data.confidence || 0.85
-            };
+            if (data.species) {
+              return {
+                species: data.species,
+                confidence: data.confidence || 0.85
+              };
+            }
           }
         } catch (error) {
           console.error('Python service species detection failed:', error.message);
         }
       }
 
-      // Fallback: Use breed prediction to determine species
+      // PRIORITY 2: Infer from breed prediction (from actual model only)
       const predictions = await this.predictBreed(imageBuffer);
       if (!predictions || predictions.length === 0) {
-        return { species: 'cattle_or_buffalo', confidence: 0.85 };
+        throw new Error('No predictions available for species detection');
       }
       
       const topBreed = predictions[0].breed;
       
-      // Classify as cattle or buffalo based on breed
-      const buffaloBreeds = ['Murrah', 'Mehsana', 'Surti', 'Jaffrabadi', 'Nili_Ravi', 'Nagpuri', 'Bhadawari'];
-      const isBuffalo = buffaloBreeds.some(breed => topBreed.includes(breed));
+      // Classify as cattle or buffalo based on breed name (from model)
+      const buffaloBreeds = ['Murrah', 'Mehsana', 'Surti', 'Jaffrabadi', 'Nili_Ravi', 'Nagpuri', 'Bhadawari', 'Banni'];
+      const isBuffalo = buffaloBreeds.some(breed => topBreed.toLowerCase().includes(breed.toLowerCase()));
       
       return {
         species: isBuffalo ? 'buffalo' : 'cattle',
@@ -323,7 +325,7 @@ class PyTorchPredictor {
       };
     } catch (error) {
       console.error('Species detection failed:', error);
-      return { species: 'cattle_or_buffalo', confidence: 0.85 };
+      throw new Error('Species detection failed: ' + error.message);
     }
   }
 
