@@ -45,7 +45,7 @@ class BreedPredictor {
       // Update this path to point to your new model
       const modelPath = path.join(__dirname, '..', '..', 'models', process.env.BREED_MODEL_NAME || 'breed_model.onnx');
       if (!fs.existsSync(modelPath)) {
-        console.log('Model not found, using mock predictions');
+        console.log('❌ Model not found. This predictor is deprecated. Use PyTorchPredictor instead.');
         return false;
       }
       
@@ -57,7 +57,7 @@ class BreedPredictor {
       console.log('AI model loaded successfully');
       return true;
     } catch (error) {
-      console.log('Failed to load AI model, using mock predictions:', error.message);
+      console.log('❌ Failed to load AI model:', error.message);
       return false;
     }
   }
@@ -99,7 +99,7 @@ class BreedPredictor {
   async predictBreed(imageBuffer) {
     try {
       if (!this.session) {
-        return this.getMockPrediction();
+        throw new Error('Model not loaded. This predictor is deprecated. Use PyTorchPredictor with best_model_convnext_base_acc0.7007.pth instead.');
       }
 
       const input = await this.preprocessImage(imageBuffer);
@@ -120,33 +120,33 @@ class BreedPredictor {
       }];
     } catch (error) {
       console.error('Prediction failed:', error);
-      return this.getMockPrediction();
+      throw new Error('Breed prediction failed: ' + error.message);
     }
   }
 
   async detectSpecies(imageBuffer) {
     try {
       if (!this.session) {
-        return { species: 'cattle_or_buffalo', confidence: 0.85 };
+        throw new Error('Model not loaded. This predictor is deprecated. Use PyTorchPredictor instead.');
       }
 
-      const input = await this.preprocessImage(imageBuffer);
-      const results = await this.session.run({ input });
-      
-      // Mock species detection for now
-      const isAnimal = Math.random() > 0.1; // 90% chance it's an animal
-      if (!isAnimal) {
-        return { species: 'non_animal', confidence: 0.9 };
+      // Infer species from breed prediction
+      const predictions = await this.predictBreed(imageBuffer);
+      if (!predictions || predictions.length === 0) {
+        throw new Error('No predictions available for species detection');
       }
       
-      const isBuffalo = Math.random() > 0.6; // 40% chance it's buffalo
+      const topBreed = predictions[0].breed.toLowerCase();
+      const buffaloBreeds = ['murrah', 'mehsana', 'surti', 'jaffrabadi', 'nili_ravi', 'bhadawari', 'banni'];
+      const isBuffalo = buffaloBreeds.some(breed => topBreed.includes(breed));
+      
       return {
         species: isBuffalo ? 'buffalo' : 'cattle',
-        confidence: 0.8 + Math.random() * 0.15
+        confidence: predictions[0].confidence || 0.85
       };
     } catch (error) {
       console.error('Species detection failed:', error);
-      return { species: 'cattle_or_buffalo', confidence: 0.75 };
+      throw new Error('Species detection failed: ' + error.message);
     }
   }
 
@@ -185,16 +185,8 @@ class BreedPredictor {
     }
   }
 
-  getMockPrediction() {
-    const breeds = [
-      'Gir (Cattle)', 'Sahiwal (Cattle)', 'Murrah (Buffalo)', 'Crossbred Cattle',
-      'Holstein (Cattle)', 'Jersey (Cattle)', 'Mehsana (Buffalo)', 'Surti (Buffalo)'
-    ];
-    
-    // Return only one breed with 100% confidence
-    const randomBreed = breeds[Math.floor(Math.random() * breeds.length)];
-    return [{ breed: randomBreed, confidence: 1.0 }];
-  }
+  // REMOVED: getMockPrediction() - All predictions MUST come from the actual model
+  // This predictor is deprecated. Use PyTorchPredictor with best_model_convnext_base_acc0.7007.pth instead.
 
   async isCrossbreed(predictions) {
     // Simple heuristic: if top prediction confidence is low and multiple breeds have similar scores

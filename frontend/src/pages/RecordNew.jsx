@@ -279,7 +279,16 @@ export default function RecordNew() {
       
       let data
       if (!res.ok) {
-        throw new Error('Prediction failed')
+        // Try to extract detailed error message from backend
+        try {
+          const errorData = await res.json()
+          const errorMessage = errorData.message || errorData.error || 'Prediction failed'
+          const errorDetails = errorData.details ? `\n\n${errorData.details}` : ''
+          throw new Error(errorMessage + errorDetails)
+        } catch (parseError) {
+          // If JSON parsing fails, use status text
+          throw new Error(`Prediction failed (${res.status}): ${res.statusText || 'Unknown error'}`)
+        }
       } else {
         data = await res.json()
       }
@@ -305,7 +314,10 @@ export default function RecordNew() {
       
     } catch (err) {
       console.error('Prediction error:', err)
-      setError('Failed to predict breed. Please try again.')
+      // Display the actual error message from the backend (includes details about model service)
+      // Handle newlines in error messages (from deployment instructions)
+      const errorMsg = err.message || 'Failed to predict breed. Please ensure the AI model service is running.'
+      setError(errorMsg.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
       setSuccess('')
     } finally {
       setPredicting(false)

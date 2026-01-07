@@ -70,7 +70,7 @@ class ConvNeXtPredictor {
   async loadModel() {
     try {
       if (!fs.existsSync(this.modelPath)) {
-        console.log('ConvNeXt model not found, using mock predictions');
+        console.log('❌ ConvNeXt model not found. This predictor is deprecated. Use PyTorchPredictor instead.');
         return false;
       }
       
@@ -82,7 +82,7 @@ class ConvNeXtPredictor {
       console.log('ConvNeXt model loaded successfully');
       return true;
     } catch (error) {
-      console.log('Failed to load ConvNeXt model, using mock predictions:', error.message);
+      console.log('❌ Failed to load ConvNeXt model:', error.message);
       return false;
     }
   }
@@ -136,7 +136,7 @@ class ConvNeXtPredictor {
   async predictBreed(imageBuffer) {
     try {
       if (!this.session) {
-        return this.getMockPrediction();
+        throw new Error('Model not loaded. This predictor is deprecated. Use PyTorchPredictor with best_model_convnext_base_acc0.7007.pth instead.');
       }
 
       const input = await this.preprocessImage(imageBuffer);
@@ -155,22 +155,26 @@ class ConvNeXtPredictor {
       }));
     } catch (error) {
       console.error('Prediction failed:', error);
-      return this.getMockPrediction();
+      throw new Error('Breed prediction failed: ' + error.message);
     }
   }
 
   async detectSpecies(imageBuffer) {
     try {
       if (!this.session) {
-        return { species: 'cattle_or_buffalo', confidence: 0.85 };
+        throw new Error('Model not loaded. This predictor is deprecated. Use PyTorchPredictor instead.');
       }
 
       // Use breed prediction to determine species
       const predictions = await this.predictBreed(imageBuffer);
+      if (!predictions || predictions.length === 0) {
+        throw new Error('No predictions available for species detection');
+      }
+      
       const topBreed = predictions[0].breed;
       
       // Classify as cattle or buffalo based on breed
-      const buffaloBreeds = ['Murrah', 'Mehsana', 'Surti', 'Jaffrabadi', 'Nili_Ravi', 'Nagpuri'];
+      const buffaloBreeds = ['Murrah', 'Mehsana', 'Surti', 'Jaffrabadi', 'Nili_Ravi', 'Nagpuri', 'Bhadawari', 'Banni'];
       const isBuffalo = buffaloBreeds.some(breed => topBreed.includes(breed));
       
       return {
@@ -179,21 +183,12 @@ class ConvNeXtPredictor {
       };
     } catch (error) {
       console.error('Species detection failed:', error);
-      return { species: 'cattle_or_buffalo', confidence: 0.85 };
+      throw new Error('Species detection failed: ' + error.message);
     }
   }
 
-  getMockPrediction() {
-    // Use actual breeds from model info or fallback to common breeds
-    const commonBreeds = this.breeds.length > 0 ? this.breeds : [
-      'Gir', 'Sahiwal', 'Murrah', 'Holstein_Friesian', 'Jersey', 
-      'Kankrej', 'Tharparkar', 'Red_Sindhi', 'Hariana', 'Ongole'
-    ];
-    
-    // Return only one breed with 100% confidence
-    const randomBreed = commonBreeds[Math.floor(Math.random() * commonBreeds.length)];
-    return [{ breed: randomBreed, confidence: 1.0 }];
-  }
+  // REMOVED: getMockPrediction() - All predictions MUST come from the actual model
+  // This predictor is deprecated. Use PyTorchPredictor with best_model_convnext_base_acc0.7007.pth instead.
 
   async isCrossbreed(predictions) {
     // Simple heuristic: if top prediction confidence is low and multiple breeds have similar scores

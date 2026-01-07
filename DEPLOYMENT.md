@@ -78,20 +78,23 @@ TWILIO_PHONE_NUMBER=your-phone-number
 The PyTorch model (`pytorch_service.py`) **cannot run directly on Vercel** because:
 - Vercel serverless functions have size limits
 - PyTorch requires specific system dependencies
+- Vercel functions are stateless and short-lived
 
-**Solutions:**
+**Solution: Deploy Python Service Separately**
 
-**Option 1: External Service (Recommended)**
-- Deploy the Python service separately on:
-  - Railway
-  - Render
-  - Heroku
-  - Or any Python hosting service
-- Update `PYTORCH_SERVICE_URL` environment variable
+The Python prediction service must be deployed separately. **See [DEPLOY_PYTHON_SERVICE.md](./DEPLOY_PYTHON_SERVICE.md) for complete instructions.**
 
-**Option 2: Remove AI Features**
-- Comment out AI prediction endpoints if not needed
-- The app will work without breed prediction
+**Quick Setup:**
+1. Deploy Python service to Railway, Render, or Heroku
+2. Copy the service URL (e.g., `https://your-service.up.railway.app`)
+3. In Vercel project settings, add environment variable:
+   - Key: `PYTORCH_SERVICE_URL`
+   - Value: Your service URL
+4. Redeploy Vercel application
+
+**Without Python Service:**
+- Breed prediction features will show 503 errors
+- Other features (user management, records, etc.) will work normally
 
 #### 📝 Model Files
 

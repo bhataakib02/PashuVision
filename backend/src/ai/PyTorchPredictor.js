@@ -49,15 +49,22 @@ class PyTorchPredictor {
   }
 
   async checkModelAvailability() {
-    // Check if .pth file exists (use Python service)
-    if (fs.existsSync(this.modelPathPth)) {
+    // Always check Python service URL (can be local or external)
+    // If PYTORCH_SERVICE_URL is set to an external URL, use it even if local file doesn't exist
+    const hasExternalServiceUrl = process.env.PYTORCH_SERVICE_URL && 
+                                  !process.env.PYTORCH_SERVICE_URL.startsWith('http://localhost') &&
+                                  !process.env.PYTORCH_SERVICE_URL.startsWith('http://127.0.0.1');
+    
+    // Check if .pth file exists locally OR if external service URL is configured
+    if (fs.existsSync(this.modelPathPth) || hasExternalServiceUrl) {
       // Check if Python service is running (with retry)
       let retries = 3;
       for (let i = 0; i < retries; i++) {
         try {
-          // Create a timeout promise
+          // Create a timeout promise (longer timeout for external services)
+          const timeoutMs = hasExternalServiceUrl ? 5000 : 2000;
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Request timeout')), 2000)
+            setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
           );
           
           const fetchPromise = fetch(`${this.pythonServiceUrl}/health`);
@@ -75,9 +82,15 @@ class PyTorchPredictor {
         } catch (error) {
           if (i === retries - 1) {
             // Last retry failed
-            console.log('❌ Python PyTorch service not available');
-            console.log(`   Start the service with: cd backend/models && python pytorch_service.py`);
-            console.log(`   Service URL: ${this.pythonServiceUrl}`);
+            if (hasExternalServiceUrl) {
+              console.log('❌ External Python PyTorch service not available');
+              console.log(`   Configured URL: ${this.pythonServiceUrl}`);
+              console.log('   Please ensure the external service is deployed and accessible.');
+            } else {
+              console.log('❌ Python PyTorch service not available');
+              console.log(`   Start the service with: cd backend/models && python pytorch_service.py`);
+              console.log(`   Service URL: ${this.pythonServiceUrl}`);
+            }
             console.log('   Predictions will fail until service is running.');
           } else {
             // Wait a bit before retrying
@@ -186,8 +199,12 @@ class PyTorchPredictor {
 
   async predictBreed(imageBuffer) {
     try {
-      // PRIORITY 1: Use Python service if model file exists (primary method)
-      if (fs.existsSync(this.modelPathPth)) {
+      // PRIORITY 1: Use Python service if external URL is configured OR local file exists
+      const hasExternalServiceUrl = process.env.PYTORCH_SERVICE_URL && 
+                                    !process.env.PYTORCH_SERVICE_URL.startsWith('http://localhost') &&
+                                    !process.env.PYTORCH_SERVICE_URL.startsWith('http://127.0.0.1');
+      
+      if (fs.existsSync(this.modelPathPth) || hasExternalServiceUrl || this.usePythonService) {
         // Always try Python service first if model file exists
         try {
           const result = await this.predictViaPythonService(imageBuffer);
@@ -213,8 +230,16 @@ class PyTorchPredictor {
           }
         }
         
-        // If model file exists but service unavailable, throw error instead of mock
-        throw new Error('Model file exists but Python service is not running. Please start the service.');
+        // If service unavailable, throw error instead of mock
+        const hasExternalServiceUrl = process.env.PYTORCH_SERVICE_URL && 
+                                      !process.env.PYTORCH_SERVICE_URL.startsWith('http://localhost') &&
+                                      !process.env.PYTORCH_SERVICE_URL.startsWith('http://127.0.0.1');
+        
+        if (hasExternalServiceUrl) {
+          throw new Error(`Python service at ${this.pythonServiceUrl} is not available. Please ensure the external service is deployed and running.`);
+        } else {
+          throw new Error('Python service is not running. Please start the service: cd backend/models && python pytorch_service.py');
+        }
       }
       
       // PRIORITY 2: Use ONNX model if available (fallback method)
@@ -244,7 +269,15 @@ class PyTorchPredictor {
       }
       
       // NO MOCK PREDICTIONS - Only use actual model
-      throw new Error('No model available. Please ensure best_model_convnext_base_acc0.7007.pth exists and Python service is running.');
+      const hasExternalServiceUrl = process.env.PYTORCH_SERVICE_URL && 
+                                    !process.env.PYTORCH_SERVICE_URL.startsWith('http://localhost') &&
+                                    !process.env.PYTORCH_SERVICE_URL.startsWith('http://127.0.0.1');
+      
+      if (hasExternalServiceUrl) {
+        throw new Error(`No model available. Please configure PYTORCH_SERVICE_URL environment variable to point to your deployed Python service (current: ${this.pythonServiceUrl}).`);
+      } else {
+        throw new Error('No model available. Please ensure best_model_convnext_base_acc0.7007.pth exists and Python service is running, or set PYTORCH_SERVICE_URL to an external service URL.');
+      }
     } catch (error) {
       console.error('❌ Prediction failed:', error.message);
       throw error; // Re-throw instead of returning mock predictions
@@ -280,8 +313,12 @@ class PyTorchPredictor {
 
   async detectSpecies(imageBuffer) {
     try {
-      // PRIORITY 1: Use Python service species endpoint if model exists
-      if (fs.existsSync(this.modelPathPth)) {
+      // PRIORITY 1: Use Python service species endpoint if external URL is configured OR local file exists
+      const hasExternalServiceUrl = process.env.PYTORCH_SERVICE_URL && 
+                                    !process.env.PYTORCH_SERVICE_URL.startsWith('http://localhost') &&
+                                    !process.env.PYTORCH_SERVICE_URL.startsWith('http://127.0.0.1');
+      
+      if (fs.existsSync(this.modelPathPth) || hasExternalServiceUrl || this.usePythonService) {
         try {
           const formData = new FormData();
           formData.append('image', imageBuffer, {

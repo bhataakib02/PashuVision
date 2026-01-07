@@ -1134,10 +1134,17 @@ app.post('/api/predict', authMiddleware, upload.single('image'), async (req, res
       speciesResult = await pytorchPredictor.detectSpecies(req.file.buffer);
     } catch (speciesError) {
       console.error('❌ Species detection failed:', speciesError.message);
+      const serviceUrl = process.env.PYTORCH_SERVICE_URL || 'http://localhost:5001';
+      const isExternalService = serviceUrl && !serviceUrl.startsWith('http://localhost') && !serviceUrl.startsWith('http://127.0.0.1');
+      
       return res.status(503).json({ 
         error: 'AI model species detection unavailable',
-        message: 'The PyTorch model service (best_model_convnext_base_acc0.7007.pth) is not available.',
-        details: 'Please ensure the Python service is running: cd backend/models && python pytorch_service.py'
+        message: 'The PyTorch model prediction service is not available.',
+        details: isExternalService 
+          ? `Please ensure your external Python service at ${serviceUrl} is deployed and running. See DEPLOYMENT.md for instructions.`
+          : 'For local development: Start the Python service with: cd backend/models && python pytorch_service.py\nFor production: Deploy the Python service separately and set PYTORCH_SERVICE_URL environment variable.',
+        serviceUrl: serviceUrl,
+        deploymentGuide: 'See DEPLOYMENT.md for instructions on deploying the Python service'
       });
     }
     
@@ -1155,11 +1162,18 @@ app.post('/api/predict', authMiddleware, upload.single('image'), async (req, res
       pytorchPredictions = await pytorchPredictor.predictBreed(req.file.buffer);
     } catch (predictionError) {
       console.error('❌ Model prediction failed:', predictionError.message);
+      const serviceUrl = process.env.PYTORCH_SERVICE_URL || 'http://localhost:5001';
+      const isExternalService = serviceUrl && !serviceUrl.startsWith('http://localhost') && !serviceUrl.startsWith('http://127.0.0.1');
+      
       return res.status(503).json({ 
         error: 'AI model prediction service unavailable',
-        message: 'The PyTorch model (best_model_convnext_base_acc0.7007.pth) is not available. No mock predictions will be used.',
-        details: 'Please ensure the Python service is running: cd backend/models && python pytorch_service.py',
-        modelFile: 'best_model_convnext_base_acc0.7007.pth'
+        message: 'The PyTorch model prediction service is not available. No mock predictions will be used.',
+        details: isExternalService 
+          ? `Please ensure your external Python service at ${serviceUrl} is deployed and running. See DEPLOYMENT.md for instructions.`
+          : 'For local development: Start the Python service with: cd backend/models && python pytorch_service.py\nFor production: Deploy the Python service separately (Railway, Render, etc.) and set PYTORCH_SERVICE_URL environment variable.',
+        serviceUrl: serviceUrl,
+        modelFile: 'best_model_convnext_base_acc0.7007.pth',
+        deploymentGuide: 'See DEPLOYMENT.md for instructions on deploying the Python service'
       });
     }
     
