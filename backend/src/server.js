@@ -1128,8 +1128,19 @@ app.post('/api/predict', authMiddleware, upload.single('image'), async (req, res
   if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
   
   try {
-    // Use PyTorch model as primary for species detection
-    const speciesResult = await pytorchPredictor.detectSpecies(req.file.buffer);
+    // Use PyTorch model as primary for species detection - MUST use actual model
+    let speciesResult;
+    try {
+      speciesResult = await pytorchPredictor.detectSpecies(req.file.buffer);
+    } catch (speciesError) {
+      console.error('❌ Species detection failed:', speciesError.message);
+      return res.status(503).json({ 
+        error: 'AI model species detection unavailable',
+        message: speciesError.message,
+        details: 'Please ensure the PyTorch model service is running.'
+      });
+    }
+    
     if (speciesResult.species === 'non_animal') {
       return res.status(400).json({ 
         error: 'Non-animal image detected',
@@ -1138,8 +1149,18 @@ app.post('/api/predict', authMiddleware, upload.single('image'), async (req, res
       });
     }
     
-    // Use PyTorch model as primary predictor
-    const pytorchPredictions = await pytorchPredictor.predictBreed(req.file.buffer);
+    // Use PyTorch model as primary predictor - MUST use actual model, no mocks
+    let pytorchPredictions;
+    try {
+      pytorchPredictions = await pytorchPredictor.predictBreed(req.file.buffer);
+    } catch (predictionError) {
+      console.error('❌ Model prediction failed:', predictionError.message);
+      return res.status(503).json({ 
+        error: 'AI model prediction service unavailable',
+        message: predictionError.message,
+        details: 'Please ensure the PyTorch model service is running. Model file: best_model_convnext_base_acc0.7007.pth'
+      });
+    }
     
     // Use PyTorch predictions as primary (combined predictions now just use PyTorch)
     const combinedPredictions = pytorchPredictions;

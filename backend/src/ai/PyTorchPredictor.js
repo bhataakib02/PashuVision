@@ -185,61 +185,96 @@ class PyTorchPredictor {
 
   async predictBreed(imageBuffer) {
     try {
-      // Use Python service if available
-      if (this.usePythonService) {
-        return await this.predictViaPythonService(imageBuffer);
-      }
-      
-      // Use ONNX model if available
-      if (this.session) {
-        const ort = require('onnxruntime-node');
-        const input = await this.preprocessImage(imageBuffer);
-        const results = await this.session.run({ input });
+      // PRIORITY 1: Use Python service if model file exists (primary method)
+      if (fs.existsSync(this.modelPathPth)) {
+        // Always try Python service first if model file exists
+        try {
+          const result = await this.predictViaPythonService(imageBuffer);
+          if (result && result.length > 0 && result[0].breed !== 'Unknown') {
+            return result;
+          }
+        } catch (error) {
+          console.error('⚠️  Python service prediction failed, retrying...', error.message);
+        }
         
-        // Get predictions from model output
-        const predictions = Array.from(results.output.data);
-        const topIndices = predictions
-          .map((score, index) => ({ score, index }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 5);
-
-        return topIndices.map(({ score, index }) => ({
-          breed: this.breeds[index] || 'Unknown',
-          confidence: Math.max(0, Math.min(1, score))
-        }));
+        // Retry Python service check - maybe it just started
+        if (!this.usePythonService) {
+          await this.checkModelAvailability();
+          if (this.usePythonService) {
+            try {
+              const result = await this.predictViaPythonService(imageBuffer);
+              if (result && result.length > 0 && result[0].breed !== 'Unknown') {
+                return result;
+              }
+            } catch (error) {
+              console.error('⚠️  Python service still unavailable', error.message);
+            }
+          }
+        }
+        
+        // If model file exists but service unavailable, throw error instead of mock
+        throw new Error('Model file exists but Python service is not running. Please start the service.');
       }
       
-      // Fallback to mock predictions (deterministic based on image)
-      return this.getMockPrediction(imageBuffer);
+      // PRIORITY 2: Use ONNX model if available (fallback method)
+      if (this.session) {
+        const ort = getOrt();
+        if (ort) {
+          try {
+            const input = await this.preprocessImage(imageBuffer);
+            const results = await this.session.run({ input });
+            
+            // Get predictions from model output
+            const predictions = Array.from(results.output.data);
+            const topIndices = predictions
+              .map((score, index) => ({ score, index }))
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 5);
+
+            return topIndices.map(({ score, index }) => ({
+              breed: this.breeds[index] || 'Unknown',
+              confidence: Math.max(0, Math.min(1, score))
+            }));
+          } catch (preprocessError) {
+            console.error('ONNX preprocessing failed:', preprocessError.message);
+            throw new Error('ONNX model preprocessing failed: ' + preprocessError.message);
+          }
+        }
+      }
+      
+      // NO MOCK PREDICTIONS - Only use actual model
+      throw new Error('No model available. Please ensure best_model_convnext_base_acc0.7007.pth exists and Python service is running.');
     } catch (error) {
-      console.error('Prediction failed:', error);
-      return this.getMockPrediction(imageBuffer);
+      console.error('❌ Prediction failed:', error.message);
+      throw error; // Re-throw instead of returning mock predictions
     }
   }
 
   async predictViaPythonService(imageBuffer) {
-    try {
-      const formData = new FormData();
-      formData.append('image', imageBuffer, {
-        filename: 'image.jpg',
-        contentType: 'image/jpeg'
-      });
+    const formData = new FormData();
+    formData.append('image', imageBuffer, {
+      filename: 'image.jpg',
+      contentType: 'image/jpeg'
+    });
 
-      const response = await fetch(`${this.pythonServiceUrl}/predict`, {
-        method: 'POST',
-        body: formData
-      });
+    const response = await fetch(`${this.pythonServiceUrl}/predict`, {
+      method: 'POST',
+      body: formData
+    });
 
-      if (!response.ok) {
-        throw new Error(`Python service error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data.predictions || this.getMockPrediction(imageBuffer);
-    } catch (error) {
-      console.error('Python service prediction failed:', error.message);
-      return this.getMockPrediction(imageBuffer);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Python service error (${response.status}): ${errorText}`);
     }
+
+    const data = await response.json();
+    
+    // Validate response has predictions
+    if (!data.predictions || !Array.isArray(data.predictions) || data.predictions.length === 0) {
+      throw new Error('Python service returned empty predictions');
+    }
+    
+    return data.predictions;
   }
 
   async detectSpecies(imageBuffer) {
