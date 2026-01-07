@@ -1,0 +1,2 @@
+web: python pytorch_service.py
+

@@ -37,11 +37,10 @@ You have two options:
    - Search for and select your repository: `-PashuVision` (or your repo name)
    - Click on the repository
 
-#### Step 3: Configure the Service
+#### Step 3: Configure the Service (IMPORTANT!)
 
-1. **Railway will detect your repository**
-   - Railway will start analyzing your repo
-   - It may auto-detect a Python service, but we need to configure it correctly
+1. **Railway may detect Node.js instead of Python**
+   - If build fails with Node.js errors, follow these steps carefully
 
 2. **Configure Service Settings**
    - Click on the service that Railway created
@@ -51,20 +50,36 @@ You have two options:
    **Root Directory:**
    - Set to: `backend/models`
    - This tells Railway where your Python service is located
+   - **This is critical - Railway must use this directory!**
 
    **Start Command:**
    - Set to: `python pytorch_service.py`
    - Or: `python3 pytorch_service.py` (if Python 3 is required)
 
-   **Python Version:**
-   - Railway will detect this automatically
-   - If needed, ensure Python 3.9 or higher is selected
+   **Build Command:**
+   - Leave this **EMPTY** or set to: `pip install -r requirements.txt`
+   - Do NOT use npm commands here!
 
-3. **Install Dependencies**
-   - Railway should automatically detect `requirements.txt`
-   - If not, create a `requirements.txt` in `backend/models/` with:
+   **Override Nixpacks Config:**
+   - Scroll down to find "Nixpacks Config" section
+   - You can leave this as auto-detected
+   - OR set to force Python detection
+
+3. **Force Python Detection (If Railway detects Node.js)**
+   - If Railway keeps trying to build with Node.js:
+   - In Settings, look for "Build Pack" or "Language"
+   - Force it to use "Python" instead of auto-detect
+   - Alternatively, create a `Procfile` in `backend/models/`:
+     ```
+     web: python pytorch_service.py
+     ```
+   - This helps Railway detect Python correctly
+
+4. **Install Dependencies**
+   - Railway should automatically detect `requirements.txt` in `backend/models/`
+   - Verify `requirements.txt` exists in `backend/models/` folder:
    ```
-   flask==3.0.0
+   flask==2.3.3
    flask-cors==4.0.0
    torch>=2.0.0
    torchvision>=0.15.0
