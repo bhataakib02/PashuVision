@@ -2,10 +2,25 @@
 backend/models/*.onnx
 backend/models/*.pth
 backend/models/*.pt
+backend/models/**/*.onnx
+backend/models/**/*.pth
+backend/models/**/*.pt
+
+# Exclude large node_modules packages (they're already in backend)
+backend/node_modules/onnxruntime-node/**
+backend/node_modules/@google-cloud/**
+backend/node_modules/canvas/**
+backend/node_modules/sharp/**
 
 # Exclude data files (using Supabase now)
 backend/data/images/**
 backend/data/*.json
+
+# Exclude Python files (using external service)
+backend/models/*.py
+backend/models/requirements.txt
+backend/models/*.sh
+backend/models/*.bat
 
 # Exclude SQL migration files (not needed in production)
 backend/*.sql
@@ -50,6 +65,12 @@ backend/.env.development
 frontend/dist
 frontend/.vite
 backend/dist
+
+# Exclude large backend dependencies that aren't needed in serverless function
+# These packages will be available from backend/node_modules if needed
+backend/node_modules/@google-cloud/speech
+backend/node_modules/canvas
+backend/node_modules/onnxruntime-node
 
 # Exclude logs
 *.log

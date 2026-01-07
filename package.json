@@ -9,20 +9,7 @@
     "build": "cd frontend && npm install && npm run build"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "cors": "^2.8.5",
-    "multer": "^1.4.5-lts.1",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "nanoid": "^5.0.7",
-    "socket.io": "^4.8.1",
-    "onnxruntime-node": "^1.22.0-rev",
-    "sharp": "^0.34.4",
-    "twilio": "^5.10.1",
-    "nodemailer": "^7.0.6",
-    "xlsx": "^0.18.5",
-    "node-cron": "^4.2.1",
-    "canvas": "^3.2.0"
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
