@@ -26,6 +26,7 @@ export default function RecordNew() {
   const [pred, setPred] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [locationError, setLocationError] = useState('')
   const [saving, setSaving] = useState(false)
   const [predicting, setPredicting] = useState(false)
   const [imageQuality, setImageQuality] = useState({ blur: false, dark: false, pose: 'good' })
@@ -222,7 +223,12 @@ export default function RecordNew() {
   }
 
   const getGps = () => {
-    if (!navigator.geolocation) return setError('Geolocation not supported')
+    setLocationError('')
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser')
+      return
+    }
+    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setGps({ 
@@ -231,8 +237,19 @@ export default function RecordNew() {
           accuracy: pos.coords.accuracy
         })
         setCapturedAt(new Date().toISOString())
+        setLocationError('') // Clear any previous error
       },
-      () => setError('Failed to get location'),
+      (err) => {
+        let errorMsg = 'Failed to get location'
+        if (err.code === err.PERMISSION_DENIED) {
+          errorMsg = 'Location access denied. Please enable location permissions.'
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          errorMsg = 'Location information unavailable. Please check your GPS settings.'
+        } else if (err.code === err.TIMEOUT) {
+          errorMsg = 'Location request timed out. Please try again.'
+        }
+        setLocationError(errorMsg)
+      },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
     )
   }
@@ -624,6 +641,18 @@ export default function RecordNew() {
           {/* Location Section */}
           <div className="card" style={{ marginTop: 16 }}>
             <h3>📍 Location & GPS</h3>
+            {locationError && (
+              <div style={{ 
+                padding: '8px 12px', 
+                marginBottom: '12px', 
+                background: '#ffebee', 
+                color: '#c62828', 
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}>
+                ⚠️ {locationError}
+              </div>
+            )}
             <div className="row" style={{ gap: 8, alignItems: 'center' }}>
               <button className="btn secondary" onClick={getGps}>
                 📍 Get GPS Location

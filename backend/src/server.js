@@ -1129,15 +1129,15 @@ app.post('/api/predict', authMiddleware, upload.single('image'), async (req, res
   
   try {
     // Use PyTorch model as primary for species detection - MUST use actual model
-    let speciesResult;
+      let speciesResult;
     try {
       speciesResult = await pytorchPredictor.detectSpecies(req.file.buffer);
     } catch (speciesError) {
       console.error('❌ Species detection failed:', speciesError.message);
       return res.status(503).json({ 
         error: 'AI model species detection unavailable',
-        message: speciesError.message,
-        details: 'Please ensure the PyTorch model service is running.'
+        message: 'The PyTorch model service (best_model_convnext_base_acc0.7007.pth) is not available.',
+        details: 'Please ensure the Python service is running: cd backend/models && python pytorch_service.py'
       });
     }
     
@@ -1157,8 +1157,9 @@ app.post('/api/predict', authMiddleware, upload.single('image'), async (req, res
       console.error('❌ Model prediction failed:', predictionError.message);
       return res.status(503).json({ 
         error: 'AI model prediction service unavailable',
-        message: predictionError.message,
-        details: 'Please ensure the PyTorch model service is running. Model file: best_model_convnext_base_acc0.7007.pth'
+        message: 'The PyTorch model (best_model_convnext_base_acc0.7007.pth) is not available. No mock predictions will be used.',
+        details: 'Please ensure the Python service is running: cd backend/models && python pytorch_service.py',
+        modelFile: 'best_model_convnext_base_acc0.7007.pth'
       });
     }
     

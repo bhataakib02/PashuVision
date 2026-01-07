@@ -75,9 +75,10 @@ class PyTorchPredictor {
         } catch (error) {
           if (i === retries - 1) {
             // Last retry failed
-            console.log('⚠️  Python PyTorch service not available, using mock predictions');
+            console.log('❌ Python PyTorch service not available');
             console.log(`   Start the service with: cd backend/models && python pytorch_service.py`);
             console.log(`   Service URL: ${this.pythonServiceUrl}`);
+            console.log('   Predictions will fail until service is running.');
           } else {
             // Wait a bit before retrying
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -102,7 +103,7 @@ class PyTorchPredictor {
       }
     }
     
-    console.log('⚠️  No model available, using mock predictions');
+      console.log('❌ No model available - predictions will fail');
   }
 
   loadModelInfo() {
@@ -329,28 +330,8 @@ class PyTorchPredictor {
     }
   }
 
-  getMockPrediction(imageBuffer = null) {
-    // Use actual breeds from model info or fallback to common breeds
-    const commonBreeds = this.breeds.length > 0 ? this.breeds : [
-      'Gir', 'Sahiwal', 'Murrah', 'Holstein_Friesian', 'Jersey', 
-      'Kankrej', 'Tharparkar', 'Red_Sindhi', 'Hariana', 'Ongole'
-    ];
-    
-    // Make prediction deterministic based on image content
-    // Same image will always return same breed
-    let breedIndex = 0;
-    if (imageBuffer && imageBuffer.length > 0) {
-      // Create hash from image buffer to get consistent breed
-      const hash = crypto.createHash('md5').update(imageBuffer).digest('hex');
-      // Convert hash to number and use modulo to pick breed
-      const hashNum = parseInt(hash.substring(0, 8), 16);
-      breedIndex = hashNum % commonBreeds.length;
-    }
-    
-    // Return consistent breed for same image
-    const selectedBreed = commonBreeds[breedIndex];
-    return [{ breed: selectedBreed, confidence: 0.75 }]; // Lower confidence for mock
-  }
+  // REMOVED: getMockPrediction() - All predictions MUST come from the actual model
+  // The model best_model_convnext_base_acc0.7007.pth must be loaded via Python service
 
   async isCrossbreed(predictions) {
     // Simple heuristic: if top prediction confidence is low and multiple breeds have similar scores
