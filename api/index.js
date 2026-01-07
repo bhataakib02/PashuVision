@@ -40,7 +40,21 @@ try {
   process.chdir(originalCwd);
   
   // Return a simple error handler if server fails to load
-  const express = require('express');
+  let express;
+  try {
+    express = require('express');
+  } catch (e) {
+    // Express not available, create minimal handler
+    const errorApp = function(req, res) {
+      res.status(500).json({ 
+        error: 'Server initialization failed', 
+        message: error.message,
+        details: 'Check Vercel logs for more information'
+      });
+    };
+    module.exports = errorApp;
+    return;
+  }
   const errorApp = express();
   errorApp.use(express.json());
   errorApp.all('*', (req, res) => {
