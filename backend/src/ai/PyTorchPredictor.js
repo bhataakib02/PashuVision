@@ -88,8 +88,8 @@ class PyTorchPredictor {
               console.log('   Please ensure the external service is deployed and accessible.');
             } else {
               console.log('❌ Python PyTorch service not available');
-              console.log(`   Start the service with: cd backend/models && python pytorch_service.py`);
-              console.log(`   Service URL: ${this.pythonServiceUrl}`);
+            console.log(`   Start the service with: cd backend/models && python pytorch_service.py`);
+            console.log(`   Service URL: ${this.pythonServiceUrl}`);
             }
             console.log('   Predictions will fail until service is running.');
           } else {
@@ -218,7 +218,7 @@ class PyTorchPredictor {
         // Retry Python service check - maybe it just started
         if (!this.usePythonService) {
           await this.checkModelAvailability();
-          if (this.usePythonService) {
+      if (this.usePythonService) {
             try {
               const result = await this.predictViaPythonService(imageBuffer);
               if (result && result.length > 0 && result[0].breed !== 'Unknown') {
@@ -228,8 +228,8 @@ class PyTorchPredictor {
               console.error('⚠️  Python service still unavailable', error.message);
             }
           }
-        }
-        
+      }
+      
         // If service unavailable, throw error instead of mock
         const hasExternalServiceUrl = process.env.PYTORCH_SERVICE_URL && 
                                       !process.env.PYTORCH_SERVICE_URL.startsWith('http://localhost') &&
@@ -247,20 +247,20 @@ class PyTorchPredictor {
         const ort = getOrt();
         if (ort) {
           try {
-            const input = await this.preprocessImage(imageBuffer);
-            const results = await this.session.run({ input });
-            
-            // Get predictions from model output
-            const predictions = Array.from(results.output.data);
-            const topIndices = predictions
-              .map((score, index) => ({ score, index }))
-              .sort((a, b) => b.score - a.score)
-              .slice(0, 5);
+        const input = await this.preprocessImage(imageBuffer);
+        const results = await this.session.run({ input });
+        
+        // Get predictions from model output
+        const predictions = Array.from(results.output.data);
+        const topIndices = predictions
+          .map((score, index) => ({ score, index }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
 
-            return topIndices.map(({ score, index }) => ({
-              breed: this.breeds[index] || 'Unknown',
-              confidence: Math.max(0, Math.min(1, score))
-            }));
+        return topIndices.map(({ score, index }) => ({
+          breed: this.breeds[index] || 'Unknown',
+          confidence: Math.max(0, Math.min(1, score))
+        }));
           } catch (preprocessError) {
             console.error('ONNX preprocessing failed:', preprocessError.message);
             throw new Error('ONNX model preprocessing failed: ' + preprocessError.message);
@@ -285,23 +285,23 @@ class PyTorchPredictor {
   }
 
   async predictViaPythonService(imageBuffer) {
-    const formData = new FormData();
-    formData.append('image', imageBuffer, {
-      filename: 'image.jpg',
-      contentType: 'image/jpeg'
-    });
+      const formData = new FormData();
+      formData.append('image', imageBuffer, {
+        filename: 'image.jpg',
+        contentType: 'image/jpeg'
+      });
 
-    const response = await fetch(`${this.pythonServiceUrl}/predict`, {
-      method: 'POST',
-      body: formData
-    });
+      const response = await fetch(`${this.pythonServiceUrl}/predict`, {
+        method: 'POST',
+        body: formData
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
       throw new Error(`Python service error (${response.status}): ${errorText}`);
-    }
+      }
 
-    const data = await response.json();
+      const data = await response.json();
     
     // Validate response has predictions
     if (!data.predictions || !Array.isArray(data.predictions) || data.predictions.length === 0) {
@@ -334,10 +334,10 @@ class PyTorchPredictor {
           if (response.ok) {
             const data = await response.json();
             if (data.species) {
-              return {
+            return {
                 species: data.species,
-                confidence: data.confidence || 0.85
-              };
+              confidence: data.confidence || 0.85
+            };
             }
           }
         } catch (error) {
