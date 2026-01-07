@@ -51,8 +51,9 @@ try {
       details: 'Check Vercel logs for more information'
     });
   });
+  // Export error app instead of throwing
   module.exports = errorApp;
-  throw error;
+  return;
 }
 
 // Restore original directory
