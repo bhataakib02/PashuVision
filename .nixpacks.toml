@@ -1,0 +1,13 @@
+# Force Nixpacks to use Python for backend/models
+[phases.setup]
+nixPkgs = ["python311", "pip"]
+
+[phases.install]
+cmds = ["cd backend/models && pip install -r requirements.txt"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "cd backend/models && python pytorch_service.py"
+

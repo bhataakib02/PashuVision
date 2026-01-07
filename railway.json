@@ -4,8 +4,8 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd backend && npm start",
-    "healthcheckPath": "/api/health",
+    "startCommand": "python backend/models/pytorch_service.py",
+    "healthcheckPath": "/health",
     "healthcheckTimeout": 300
   }
 }
