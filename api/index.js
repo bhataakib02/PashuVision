@@ -34,5 +34,5 @@ try {
 // Restore original directory
 process.chdir(originalCwd);
 
-// Export for Vercel
+// Export for Vercel - function configuration should be set in vercel.json or project settings
 module.exports = app;
