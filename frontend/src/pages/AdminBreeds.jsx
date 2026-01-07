@@ -214,13 +214,13 @@ export default function AdminBreeds() {
       
       if (!res.ok) {
         throw new Error(data.error || 'Prediction failed')
-      }
-      
+        }
+        
       // Auto-fill breed name from prediction
       if (data.predictions?.[0]?.breed) {
         const topPrediction = data.predictions[0]
-        setNewBreed(prev => ({
-          ...prev,
+          setNewBreed(prev => ({
+            ...prev,
           name: prev.name || topPrediction.breed || ''
         }))
       }

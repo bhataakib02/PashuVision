@@ -33,7 +33,6 @@ __pycache__/
 .Python
 
 # Model files (large files - add specific models if needed)
-*.pth
 *.onnx
 *.pt
 !models/.gitkeep

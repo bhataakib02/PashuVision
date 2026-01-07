@@ -262,8 +262,8 @@ export default function RecordNew() {
     setPredicting(true)
     
     try {
-      const fd = new FormData()
-      fd.append('image', files[0])
+    const fd = new FormData()
+    fd.append('image', files[0])
       
       // Add image quality info for better prediction
       fd.append('imageQuality', JSON.stringify(imageQuality))
@@ -293,9 +293,9 @@ export default function RecordNew() {
         data = await res.json()
       }
       
-      setPred(data)
+    setPred(data)
       
-        // Auto-fill breed information
+      // Auto-fill breed information
       if (data.predictions?.[0]?.breed) {
         const topPrediction = data.predictions[0]
         const confidence = topPrediction.confidence || 0
@@ -352,7 +352,7 @@ export default function RecordNew() {
       if (form.predictedBreed) {
         fd.append('predictedBreed', form.predictedBreed)
         if (form.breedConfidence) {
-          fd.append('breedConfidence', form.breedConfidence)
+        fd.append('breedConfidence', form.breedConfidence)
         }
       }
       
