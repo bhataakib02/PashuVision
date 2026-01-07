@@ -21,7 +21,6 @@
     "node-cron": "^4.2.1",
     "node-fetch": "^2.7.0",
     "nodemailer": "^7.0.6",
-    "sharp": "^0.34.4",
     "socket.io": "^4.8.1",
     "twilio": "^5.10.1",
     "xlsx": "^0.18.5"
@@ -29,7 +28,8 @@
   "optionalDependencies": {
     "@google-cloud/speech": "^7.2.0",
     "canvas": "^3.2.0",
-    "onnxruntime-node": "^1.22.0-rev"
+    "onnxruntime-node": "^1.22.0-rev",
+    "sharp": "^0.34.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
