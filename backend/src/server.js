@@ -1795,7 +1795,12 @@ app.get('/api/admin/users', authMiddleware, requireRole(['admin']), async (req, 
       isActive: user.is_active !== false && user.isActive !== false,
       createdAt: user.created_at || user.createdAt,
       lastActive: user.lastActive,
-      userId: user.id
+      userId: user.id,
+      photoUrl: user.photo_url || user.photoUrl || user.profile_photo || null,
+      region: user.region || user.location || '',
+      village: user.village || '',
+      district: user.district || '',
+      language: user.language || 'en'
     }));
     
     // Calculate statistics
