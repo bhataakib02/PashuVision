@@ -1,1 +1,7 @@
   https://github.com/bhataakib02/-PashuVision/releases/download/v1.0/best_model_convnext_base_acc0.7007.pth
+
+
+
+
+
+  https://github.com/bhataakib02/-PashuVision/releases/download/v2.0/best_model_quantized.pth
