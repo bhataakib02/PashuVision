@@ -1,0 +1,26 @@
+# Exclude Node.js files from Railway build context
+# This prevents Nixpacks from detecting Node.js and trying to build the frontend
+
+package.json
+package-lock.json
+frontend/
+backend/node_modules/
+backend/package-lock.json
+backend/package.json
+api/
+node_modules/
+
+# Exclude large data directories
+backend/data/
+
+# IDE files
+.vscode/
+.idea/
+.cursor/
+
+# OS files
+*.log
+*.tmp
+*.swp
+*.DS_Store
+

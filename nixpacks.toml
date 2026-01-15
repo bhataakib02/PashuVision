@@ -1,6 +1,5 @@
 # Force Nixpacks to use Python ONLY - Override auto-detection
-# This tells Nixpacks to ignore Node.js detection completely and just run the
-# PyTorch service in backend/models.
+# This configuration explicitly defines Python-only phases to prevent Node.js detection
 
 [phases.setup]
 nixPkgs = ["python311", "pip"]
@@ -17,6 +16,5 @@ cmds = []
 [start]
 cmd = "cd backend/models && python pytorch_service.py"
 
-# Explicitly disable Node.js detection by not declaring any Node phases.
 
 
