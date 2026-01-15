@@ -97,7 +97,40 @@ def load_model():
     pth_path = os.path.join(script_dir, 'best_model_convnext_base_acc0.7007.pth')
     model_info_path = os.path.join(script_dir, 'model_info.json')
     
-    if not os.path.exists(pth_path):
+    # Check if model file exists and is valid
+    model_file_valid = False
+    if os.path.exists(pth_path):
+        # Check if file is a Git LFS pointer (text file starting with "version https://git-lfs")
+        try:
+            with open(pth_path, 'r', encoding='utf-8', errors='ignore') as f:
+                first_line = f.readline().strip()
+                if first_line.startswith('version https://git-lfs'):
+                    print("⚠️  Model file is a Git LFS pointer, not actual file", flush=True)
+                    model_file_valid = False
+        except Exception:
+            pass
+        
+        if not model_file_valid:
+            # Validate existing file - check size and if it's a valid PyTorch file
+            file_size = os.path.getsize(pth_path)
+            # Model file should be at least 50MB (roughly)
+            if file_size > 50 * 1024 * 1024:  # 50MB minimum
+                # Try to validate it's a valid PyTorch file by checking magic bytes
+                try:
+                    with open(pth_path, 'rb') as f:
+                        # PyTorch files start with specific magic bytes or are zip archives
+                        header = f.read(4)
+                        # Check for ZIP magic bytes (PK\x03\x04) or PyTorch format
+                        if header[:2] == b'PK' or header == b'\x80\x02\x00\x00':
+                            model_file_valid = True
+                        else:
+                            print(f"⚠️  Model file exists but may be corrupted (invalid header)", flush=True)
+                except Exception:
+                    pass
+            else:
+                print(f"⚠️  Model file too small ({file_size} bytes), will re-download", flush=True)
+    
+    if not model_file_valid:
         # Try to download from MODEL_DOWNLOAD_URL if set, or use default GitHub release
         model_url = os.environ.get('MODEL_DOWNLOAD_URL')
         
@@ -105,12 +138,67 @@ def load_model():
         if not model_url:
             model_url = "https://github.com/bhataakib02/-PashuVision/releases/download/v1.0/best_model_convnext_base_acc0.7007.pth"
         
+        # Remove corrupted file if it exists
+        if os.path.exists(pth_path):
+            try:
+                os.remove(pth_path)
+                print("🗑️  Removed corrupted model file", flush=True)
+            except Exception:
+                pass
+        
         try:
             import urllib.request
-            # Download silently - no progress updates to avoid log spam
-            urllib.request.urlretrieve(model_url, pth_path)
+            print(f"📥 Downloading model from: {model_url}", flush=True)
+            
+            # Download with progress and validation
+            def download_with_validation(url, dest_path):
+                """Download file and validate it's complete"""
+                import tempfile
+                temp_path = dest_path + '.tmp'
+                
+                try:
+                    # Download to temp file first
+                    urllib.request.urlretrieve(url, temp_path)
+                    
+                    # Validate file size (should be > 50MB)
+                    file_size = os.path.getsize(temp_path)
+                    if file_size < 50 * 1024 * 1024:  # Less than 50MB
+                        raise ValueError(f"Downloaded file too small: {file_size} bytes (expected >50MB)")
+                    
+                    # Validate it's a valid file (check for ZIP/PyTorch magic bytes)
+                    with open(temp_path, 'rb') as f:
+                        header = f.read(4)
+                        if header[:2] != b'PK' and header != b'\x80\x02\x00\x00':
+                            # Not a ZIP or PyTorch file, might be HTML error page
+                            if header[:4] == b'<htm' or header[:4] == b'<!DO':
+                                raise ValueError("Downloaded file appears to be HTML (404/error page), not a model file")
+                    
+                    # Move temp file to final location
+                    if os.path.exists(dest_path):
+                        os.remove(dest_path)
+                    os.rename(temp_path, dest_path)
+                    
+                    print(f"✅ Model downloaded successfully ({file_size / (1024*1024):.1f} MB)", flush=True)
+                    return True
+                except Exception as e:
+                    # Clean up temp file on error
+                    if os.path.exists(temp_path):
+                        try:
+                            os.remove(temp_path)
+                        except:
+                            pass
+                    raise e
+            
+            download_with_validation(model_url, pth_path)
+            
         except Exception as e:
             print(f"❌ Failed to download model: {e}", flush=True)
+            # Remove partial download if exists
+            if os.path.exists(pth_path):
+                try:
+                    os.remove(pth_path)
+                except:
+                    pass
             return False
     
     # Load model info - declare local variable first, then assign to global
@@ -149,12 +237,29 @@ def load_model():
         gc.collect()
         
         try:
+            # Validate file before loading
+            file_size = os.path.getsize(pth_path)
+            if file_size < 50 * 1024 * 1024:  # Less than 50MB
+                print(f"❌ Model file too small: {file_size} bytes (corrupted?)", flush=True)
+                return False
+            
             # Load checkpoint - use CPU map_location to avoid GPU memory issues
             # This ensures we use CPU even if CUDA is detected (Railway uses CPU)
+            print(f"📦 Loading checkpoint ({file_size / (1024*1024):.1f} MB)...", flush=True)
             checkpoint = torch.load(pth_path, map_location='cpu')
             print("✅ Checkpoint loaded successfully", flush=True)
         except Exception as e:
-            print(f"❌ Failed to load checkpoint: {e}", flush=True)
+            error_msg = str(e)
+            print(f"❌ Failed to load checkpoint: {error_msg}", flush=True)
+            
+            # If file is corrupted, remove it so it can be re-downloaded
+            if 'zip archive' in error_msg.lower() or 'corrupted' in error_msg.lower():
+                print("🗑️  Removing corrupted model file for re-download", flush=True)
+                try:
+                    os.remove(pth_path)
+                except:
+                    pass
+            
             return False
         
         # Extract metadata from checkpoint if available

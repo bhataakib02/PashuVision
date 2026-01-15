@@ -310,8 +310,15 @@ class PyTorchPredictor {
             if (errorData.status === 'loading' || errorData.model_loading) {
               throw new Error('Model is still loading. Please wait 30-60 seconds and try again.');
             }
+            if (errorData.status === 'not_loaded' || errorData.error === 'Model not loaded') {
+              throw new Error('Model is not loaded yet. The first request triggers model loading. Please wait 30-60 seconds and try again.');
+            }
           } catch (e) {
-            // Not JSON, use original error
+            // If it's already our custom error, re-throw it
+            if (e.message.includes('Model is') || e.message.includes('still loading') || e.message.includes('not loaded')) {
+              throw e;
+            }
+            // Not JSON or different error, use original error
           }
         }
         
