@@ -48,8 +48,8 @@ def create_convnext_tiny(num_classes=41):
         model = timm.create_model('convnext_tiny', pretrained=False, num_classes=num_classes)
         return model
     except ImportError:
-        print("⚠️  timm not found. Installing...")
-        os.system("pip install timm")
+        # Silently install timm if missing
+        os.system("pip install timm > /dev/null 2>&1")
         import timm
         model = timm.create_model('convnext_tiny', pretrained=False, num_classes=num_classes)
         return model
@@ -135,15 +135,12 @@ def load_model():
             # Extract classes from checkpoint
             if 'classes' in checkpoint and checkpoint['classes']:
                 local_model_info['classes'] = checkpoint['classes']
-                print(f"✅ Loaded {len(checkpoint['classes'])} breed classes from checkpoint")
             
             # Extract config and num_classes
             if 'config' in checkpoint and isinstance(checkpoint['config'], dict):
                 config = checkpoint['config']
                 if 'num_classes' in config:
                     local_model_info['num_classes'] = config['num_classes']
-                if 'model_name' in config:
-                    print(f"   Model name from checkpoint: {config['model_name']}")
             
             # Also check direct num_classes key
             if 'num_classes' in checkpoint:
@@ -172,7 +169,6 @@ def load_model():
             if 'head.fc.weight' in state_dict:
                 inferred_classes = state_dict['head.fc.weight'].shape[0]
                 if num_classes != inferred_classes:
-                    print(f"   Updating num_classes from {num_classes} to {inferred_classes} (from model)")
                     num_classes = inferred_classes
                     local_model_info['num_classes'] = num_classes
         
@@ -180,12 +176,9 @@ def load_model():
         try:
             import timm
             model = timm.create_model('convnext_base', pretrained=False, num_classes=num_classes)
-            print("✅ Created ConvNeXt Base model")
         except Exception as e:
-            print(f"   Failed to create ConvNeXt Base: {e}")
-            # Fallback to ConvNeXt Tiny
+            # Fallback to ConvNeXt Tiny silently
             model = create_convnext_tiny(num_classes)
-            print("✅ Created ConvNeXt Tiny model (fallback)")
         
         # Load weights
         if state_dict is not None:
@@ -194,15 +187,8 @@ def load_model():
                 state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
             
             # Load with strict=False to handle any minor mismatches
-            missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-            if missing_keys:
-                print(f"⚠️  Missing keys (using defaults): {len(missing_keys)} keys")
-                if len(missing_keys) < 10:
-                    print(f"   Examples: {missing_keys[:5]}")
-            if unexpected_keys:
-                print(f"⚠️  Unexpected keys (ignored): {len(unexpected_keys)} keys")
+            model.load_state_dict(state_dict, strict=False)
         else:
-            print("❌ No state dict found in checkpoint")
             return False
         
         model = model.to(device)
@@ -211,17 +197,11 @@ def load_model():
         # Now assign to global variable
         model_info = local_model_info
         
-        print(f"✅ Model loaded successfully on {device}")
-        print(f"   Model path: {pth_path}")
-        print(f"   Number of classes: {num_classes}")
-        if local_model_info.get('classes'):
-            print(f"   Breed classes: {len(local_model_info['classes'])}")
+        print(f"✅ Model loaded on {device}", flush=True)
         return True
         
     except Exception as e:
-        print(f"❌ Error loading model: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Error loading model: {e}", flush=True)
         return False
 
 def preprocess_image(image_bytes):
