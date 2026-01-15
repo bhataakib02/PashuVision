@@ -152,14 +152,18 @@ export default function Profile() {
                     display: 'block'
                   }} 
                 />
-              ) : profile?.photoUrl ? (
+              ) : (profile?.photoUrl || profile?.photoBase64) ? (
                 <img 
-                  src={`${profile.photoUrl}?t=${Date.now()}`} 
+                  src={profile.photoBase64 || (profile.photoUrl?.startsWith('data:') ? profile.photoUrl : `${profile.photoUrl}?t=${Date.now()}`)} 
                   alt="avatar" 
                   onError={(e) => {
+                    console.error('Error loading profile photo:', e)
                     e.target.style.display = 'none'
                     const placeholder = e.target.nextElementSibling
                     if (placeholder) placeholder.style.display = 'flex'
+                  }}
+                  onLoad={() => {
+                    console.log('Profile photo loaded successfully')
                   }}
                   style={{ 
                     width: isMobile ? 150 : 200, 
@@ -177,7 +181,7 @@ export default function Profile() {
                 height: isMobile ? 150 : 200, 
                 borderRadius: 12, 
                 background: '#e0e0e0', 
-                display: (photoPreview || profile?.photoUrl) ? 'none' : 'flex', 
+                display: (photoPreview || profile?.photoUrl || profile?.photoBase64) ? 'none' : 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center', 
                 fontSize: isMobile ? '64px' : '48px', 

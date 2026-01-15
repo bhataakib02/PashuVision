@@ -615,6 +615,9 @@ app.get('/api/me', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
+    // Get photo URL - prefer base64 if available (for Vercel), otherwise use URL
+    const photoUrl = user.photo_base64 || user.photo_url || user.photoUrl || user.profile_photo || null;
+    
     res.json({
       id: user.id,
       name: user.name,
@@ -623,7 +626,8 @@ app.get('/api/me', authMiddleware, async (req, res) => {
       role: user.role,
       region: user.region || user.location || '',
       language: user.language || 'en',
-      photoUrl: user.photo_url || user.photoUrl || user.profile_photo || null,
+      photoUrl: photoUrl,
+      photoBase64: user.photo_base64 || null,
       permissions: user.permissions || []
     });
   } catch (e) {
@@ -650,50 +654,68 @@ app.put('/api/me', authMiddleware, upload.single('photo'), async (req, res) => {
     // if (language !== undefined) updates.language = language;
     updates.updated_at = new Date().toISOString();
     
-    // Handle profile photo upload - try different column names
+    // Handle profile photo upload - convert to base64 for persistence (works on Vercel)
     let photoUrl = null;
+    let photoBase64 = null;
     if (req.file) {
       try {
-        // Ensure images directory exists
-        if (!fs.existsSync(IMAGES_DIR)) {
-          fs.mkdirSync(IMAGES_DIR, { recursive: true });
+        // Convert image to base64 for database storage (persists on Vercel)
+        const base64String = req.file.buffer.toString('base64');
+        const mimeType = req.file.mimetype || 'image/jpeg';
+        photoBase64 = `data:${mimeType};base64,${base64String}`;
+        
+        // Also try to save as file (for local development)
+        if (!process.env.VERCEL) {
+          if (!fs.existsSync(IMAGES_DIR)) {
+            fs.mkdirSync(IMAGES_DIR, { recursive: true });
+          }
+          
+          const photoId = nanoid();
+          const ext = path.extname(req.file.originalname || '.jpg') || '.jpg';
+          const fileName = `profile_${req.user.sub}_${photoId}${ext}`;
+          const filePath = path.join(IMAGES_DIR, fileName);
+          fs.writeFileSync(filePath, req.file.buffer);
+          photoUrl = `/uploads/${fileName}`;
+        } else {
+          // On Vercel, use base64 data URL directly
+          photoUrl = photoBase64;
         }
         
-        const photoId = nanoid();
-        const ext = path.extname(req.file.originalname || '.jpg') || '.jpg';
-        const fileName = `profile_${req.user.sub}_${photoId}${ext}`;
-        const filePath = path.join(IMAGES_DIR, fileName);
-        fs.writeFileSync(filePath, req.file.buffer);
-        photoUrl = `/uploads/${fileName}`;
-        
-        // Try to update photo_url column (if it exists in database)
-        // If column doesn't exist, we'll catch the error and continue
+        // Try to update photo_url and photo_base64 columns
         updates.photo_url = photoUrl;
+        updates.photo_base64 = photoBase64;
+        console.log('✅ Profile photo converted to base64, size:', Math.round(base64String.length / 1024), 'KB');
       } catch (photoError) {
-        console.warn('⚠️  Error saving profile photo file:', photoError.message);
+        console.warn('⚠️  Error processing profile photo:', photoError.message);
         // Continue without photo update
       }
     }
     
-    // Update user - handle photo_url column error gracefully
+    // Update user - handle photo columns error gracefully
     let updatedUser;
     try {
       updatedUser = await db.updateUser(req.user.sub, updates);
     } catch (updateError) {
-      // If error is about photo_url column not existing, try again without it
-      if (updateError.message && updateError.message.includes('photo_url')) {
-        console.warn('⚠️  photo_url column not found, updating without photo');
+      // If error is about photo columns not existing, try again without them
+      if (updateError.message && (updateError.message.includes('photo_url') || updateError.message.includes('photo_base64'))) {
+        console.warn('⚠️  Photo column(s) not found, trying without photo columns');
         const updatesWithoutPhoto = { ...updates };
         delete updatesWithoutPhoto.photo_url;
+        delete updatesWithoutPhoto.photo_base64;
         updatedUser = await db.updateUser(req.user.sub, updatesWithoutPhoto);
         // Store photo URL in response even if column doesn't exist
         if (photoUrl) {
           updatedUser.photo_url = photoUrl;
+          updatedUser.photo_base64 = photoBase64;
         }
       } else {
         throw updateError;
       }
     }
+    
+    // Get the photo URL from the updated user or use the one we just set
+    const finalPhotoUrl = updatedUser.photo_url || updatedUser.photoUrl || updatedUser.photo_base64 || photoUrl || null;
+    
     res.json({
       id: updatedUser.id,
       name: updatedUser.name,
@@ -702,7 +724,8 @@ app.put('/api/me', authMiddleware, upload.single('photo'), async (req, res) => {
       role: updatedUser.role,
       region: updatedUser.region || '',
       language: language || 'en',
-      photoUrl: updatedUser.photo_url || updatedUser.photoUrl || photoUrl || null
+      photoUrl: finalPhotoUrl,
+      photoBase64: updatedUser.photo_base64 || photoBase64 || null
     });
   } catch (e) {
     console.error('Error updating profile:', e);
