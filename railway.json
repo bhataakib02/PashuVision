@@ -5,7 +5,7 @@
     "dockerfilePath": null
   },
   "deploy": {
-    "startCommand": "cd backend/models && /app/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --access-logfile - --error-logfile - --log-level error --preload pytorch_service:app",
+    "startCommand": "cd backend/models && /app/venv/bin/gunicorn --config gunicorn_config.py pytorch_service:app",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 600,
     "restartPolicyType": "ON_FAILURE",

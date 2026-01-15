@@ -398,46 +398,15 @@ def start_model_loading():
 # Start model loading immediately when module loads
 start_model_loading()
 
+# Application is ready for Gunicorn
+# Gunicorn will import this module and use 'app' as the WSGI application
+# Model loading starts automatically when module is imported (see above)
+
 if __name__ == '__main__':
-    # Suppress all logging
+    # Only used for local development - production uses Gunicorn
     import logging
-    logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
-    logging.getLogger('flask').setLevel(logging.CRITICAL)
-    logging.getLogger('gunicorn').setLevel(logging.ERROR)
-    logging.basicConfig(level=logging.CRITICAL)
-    
-    # Disable warnings
-    import warnings
-    warnings.filterwarnings('ignore')
+    logging.basicConfig(level=logging.ERROR)
     
     port = int(os.environ.get('PORT', 5001))
-    
-    # Use gunicorn for production (more stable than Flask dev server)
-    try:
-        import gunicorn.app.wsgiapp as wsgi
-        import sys
-        
-        # Configure gunicorn
-        sys.argv = [
-            'gunicorn',
-            '--bind', f'0.0.0.0:{port}',
-            '--workers', '1',
-            '--threads', '2',
-            '--timeout', '120',
-            '--access-logfile', '-',
-            '--error-logfile', '-',
-            '--log-level', 'error',
-            '--preload',
-            'pytorch_service:app'
-        ]
-        wsgi.run()
-    except ImportError:
-        # Fallback to Flask if gunicorn not available
-        app.run(
-            host='0.0.0.0',
-            port=port,
-            debug=False,
-            threaded=True,
-            use_reloader=False
-        )
+    app.run(host='0.0.0.0', port=port, debug=False)
 

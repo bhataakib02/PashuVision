@@ -1,2 +1,2 @@
-web: python pytorch_service.py
+web: gunicorn --config gunicorn_config.py pytorch_service:app
 
