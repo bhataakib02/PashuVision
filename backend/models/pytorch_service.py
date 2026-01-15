@@ -62,45 +62,41 @@ def load_model():
     pth_path = os.path.join(script_dir, 'best_model_convnext_base_acc0.7007.pth')
     model_info_path = os.path.join(script_dir, 'model_info.json')
     
-    print(f"   Looking for model at: {pth_path}")
     if not os.path.exists(pth_path):
-        print(f"⚠️  Model file not found: {pth_path}")
-        print(f"   Current working directory: {os.getcwd()}")
-        print(f"   Script directory: {script_dir}")
-        
         # Try to download from MODEL_DOWNLOAD_URL if set, or use default GitHub release
         model_url = os.environ.get('MODEL_DOWNLOAD_URL')
         
         # Default GitHub release URL if not set
         if not model_url:
             model_url = "https://github.com/bhataakib02/-PashuVision/releases/download/v1.0/best_model_convnext_base_acc0.7007.pth"
-            print("   MODEL_DOWNLOAD_URL not set, using default GitHub release")
         
-        print(f"   Attempting to download model from: {model_url}")
+        print(f"   Downloading model from GitHub release...", flush=True)
         try:
             import urllib.request
             import sys
             
-            # Show download progress for large files
+            # Show download progress (less frequent updates)
+            last_percent = -1
             def show_progress(block_num, block_size, total_size):
+                nonlocal last_percent
                 downloaded = block_num * block_size
                 percent = min(100, (downloaded * 100) // total_size) if total_size > 0 else 0
-                sys.stdout.write(f"\r   Downloading: {percent}% ({downloaded // 1024 // 1024}MB / {total_size // 1024 // 1024}MB)")
-                sys.stdout.flush()
+                # Only update every 5% to reduce log spam
+                if percent >= last_percent + 5 or percent == 100:
+                    sys.stdout.write(f"\r   Downloading: {percent}% ({downloaded // 1024 // 1024}MB / {total_size // 1024 // 1024}MB)")
+                    sys.stdout.flush()
+                    last_percent = percent
             
-            print("   Downloading model file (this may take a few minutes)...")
             urllib.request.urlretrieve(model_url, pth_path, show_progress)
             print()  # New line after progress
             file_size = os.path.getsize(pth_path)
-            print(f"✅ Model downloaded successfully: {pth_path} ({file_size / 1024 / 1024:.2f} MB)")
+            print(f"✅ Model downloaded: {file_size / 1024 / 1024:.1f} MB", flush=True)
         except Exception as e:
-            print(f"\n❌ Failed to download model: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Failed to download model: {e}", flush=True)
             return False
     else:
         file_size = os.path.getsize(pth_path)
-        print(f"✅ Model file found: {pth_path} ({file_size} bytes)")
+        print(f"✅ Model found: {file_size / 1024 / 1024:.1f} MB", flush=True)
     
     # Load model info - declare local variable first, then assign to global
     local_model_info = None
@@ -108,9 +104,8 @@ def load_model():
         if os.path.exists(model_info_path):
             with open(model_info_path, 'r') as f:
                 local_model_info = json.load(f)
-            print(f"✅ Loaded model info: {len(local_model_info.get('classes', []))} breeds")
         else:
-            print("⚠️  model_info.json not found, using defaults")
+            # Use defaults silently
             local_model_info = {
                 'classes': [
                     'Alambadi', 'Amritmahal', 'Ayrshire', 'Banni', 'Bargur', 'Bhadawari', 
@@ -406,29 +401,22 @@ def load_model_background():
     model_load_error = None
     
     try:
-        print("🔄 Starting background model loading...")
+        print("🔄 Starting background model loading...", flush=True)
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        print(f"   Script directory: {script_dir}")
-        print(f"   Contents of {script_dir}:")
-        try:
-            for item in os.listdir(script_dir):
-                item_path = os.path.join(script_dir, item)
-                size = os.path.getsize(item_path) if os.path.isfile(item_path) else 0
-                print(f"      - {item} ({size} bytes)" if os.path.isfile(item_path) else f"      - {item}/")
-        except Exception as e:
-            print(f"      Error listing directory: {e}")
         
         model_loaded = load_model()
         if model_loaded:
-            print("✅ Model loaded successfully in background")
+            print("✅ Model loaded successfully in background", flush=True)
         else:
             model_load_error = "Model file not found or download failed"
-            print(f"⚠️  {model_load_error}")
+            print(f"⚠️  {model_load_error}", flush=True)
     except Exception as e:
         model_load_error = str(e)
-        print(f"❌ Error loading model in background: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Error loading model in background: {e}", flush=True)
+        # Only print traceback for actual errors, not warnings
+        if "not found" not in str(e).lower():
+            import traceback
+            traceback.print_exc()
     finally:
         model_loading = False
 
@@ -440,26 +428,17 @@ if __name__ == '__main__':
     try:
         print("🚀 Starting PyTorch Prediction Service...", flush=True)
         print(f"   Device: {device}", flush=True)
-        print(f"   Working directory: {os.getcwd()}", flush=True)
-        print(f"   Script location: {os.path.abspath(__file__)}", flush=True)
-        print(f"   Python version: {sys.version}", flush=True)
-        print(f"   Python executable: {sys.executable}", flush=True)
         
         # Start model loading in background thread
         try:
             model_thread = threading.Thread(target=load_model_background, daemon=True)
             model_thread.start()
-            print("   Model loading started in background thread", flush=True)
         except Exception as e:
             print(f"   ⚠️  Could not start model loading thread: {e}", flush=True)
-            print("   Service will start anyway, but model won't be available", flush=True)
         
         # Start Flask server immediately (don't wait for model)
         port = int(os.environ.get('PORT', 5001))
-        print(f"✅ Starting Flask server immediately on port {port}", flush=True)
-        print(f"   Health check available at: http://0.0.0.0:{port}/health", flush=True)
-        print(f"   Environment PORT variable: {os.environ.get('PORT', 'not set')}", flush=True)
-        print(f"   Model will load in background - /predict will work once model is ready", flush=True)
+        print(f"✅ Flask server starting on port {port}", flush=True)
         
         # Ensure Flask uses the correct host and port
         # Use threaded=True for better concurrency
