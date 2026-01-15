@@ -7,7 +7,6 @@ import LoadingSpinner from '../components/LoadingSpinner.jsx'
 
 export default function Records() {
   const [items, setItems] = useState([])
-  const [users, setUsers] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
@@ -26,7 +25,7 @@ export default function Records() {
 
   useEffect(() => {
     loadRecords()
-    loadUsers()
+    // loadUsers() - no longer needed, user names come from API
   }, [])
 
   const loadRecords = async () => {
@@ -64,40 +63,12 @@ export default function Records() {
     }
   }
 
-  const loadUsers = async () => {
-    const token = localStorage.getItem('token')
-    if (!token) return
-    
-    try {
-      const res = await fetch('/api/admin/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      
-      if (!res.ok) {
-        // If not authorized (403) or other error, silently fail - user names won't be shown
-        if (res.status === 403) {
-          console.log('⚠️ Admin access required for user names. Showing IDs only.')
-        }
-        return
-      }
-      
-      const data = await res.json().catch(() => ({}))
-      
-      // API returns { users: [...], totalUsers, activeUsers }
-      const usersList = Array.isArray(data.users) ? data.users : (Array.isArray(data) ? data : [])
-      setUsers(usersList)
-      console.log(`👥 Loaded ${usersList.length} users for name lookup`)
-    } catch (err) {
-      console.error('Load users error:', err)
+  const getUserName = (record) => {
+    // Use createdByName from the API response
+    if (record && record.createdByName) {
+      return record.createdByName
     }
-  }
-
-  const getUserName = (userId) => {
-    if (!userId) return null
-    if (users.length === 0) return null // Users not loaded yet or access denied
-    
-    const user = users.find(u => u.id === userId)
-    return user ? user.name : null
+    return null
   }
 
   const filtered = useMemo(() => {
@@ -444,7 +415,7 @@ export default function Records() {
                     {it.createdBy ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <span style={{ fontWeight: '500', color: '#333' }}>
-                          {getUserName(it.createdBy) || 'Unknown User'}
+                          {getUserName(it) || 'Unknown User'}
                         </span>
                         <span style={{ fontSize: '11px', color: '#666' }}>
                           ID: {it.createdBy.slice(0, 8)}

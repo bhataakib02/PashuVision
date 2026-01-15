@@ -783,33 +783,51 @@ app.get('/api/animals', authMiddleware, async (req, res) => {
       console.warn(`⚠️  Unknown user role: ${user.role}`);
     }
     
+    // Fetch users to get user names for createdBy fields
+    let userMap = {};
+    try {
+      const users = await getUsers();
+      userMap = users.reduce((acc, u) => {
+        acc[u.id] = u.name || u.email || 'Unknown User';
+        return acc;
+      }, {});
+      console.log(`👥 Loaded ${users.length} users for name lookup`);
+    } catch (userError) {
+      console.warn('⚠️  Could not load users for name lookup:', userError.message);
+      // Continue without user names - frontend will show IDs
+    }
+    
     // Map snake_case to camelCase for frontend compatibility
-    const mappedAnimals = filteredAnimals.map(animal => ({
-      id: animal.id,
-      createdAt: animal.created_at || animal.createdAt,
-      createdBy: animal.created_by || animal.createdBy,
-      updatedAt: animal.updated_at || animal.updatedAt,
-      updatedBy: animal.updated_by || animal.updatedBy,
-      status: animal.status || 'pending',
-      ownerName: animal.owner_name || animal.ownerName || '',
-      earTag: animal.ear_tag || animal.earTag || '',
-      location: animal.location || '',
-      notes: animal.notes || '',
-      predictedBreed: animal.predicted_breed || animal.predictedBreed || animal.breed || '',
-      breed: animal.breed || animal.predicted_breed || animal.predictedBreed || '',
-      ageMonths: animal.age_months || animal.ageMonths || null,
-      gender: animal.gender || '',
-      imageUrls: animal.image_urls || animal.imageUrls || animal.images || [],
-      images: animal.image_urls || animal.imageUrls || animal.images || [],
-      gps: animal.gps || null,
-      capturedAt: animal.captured_at || animal.capturedAt || null,
-      species: animal.species || '',
-      healthStatus: animal.health_status || animal.healthStatus || 'healthy',
-      vaccinationStatus: animal.vaccination_status || animal.vaccinationStatus || 'unknown',
-      weight: animal.weight || null,
-      approvedBy: animal.approved_by || animal.approvedBy || null,
-      approvedAt: animal.approved_at || animal.approvedAt || null
-    }));
+    const mappedAnimals = filteredAnimals.map(animal => {
+      const createdBy = animal.created_by || animal.createdBy;
+      return {
+        id: animal.id,
+        createdAt: animal.created_at || animal.createdAt,
+        createdBy: createdBy,
+        createdByName: createdBy ? (userMap[createdBy] || null) : null,
+        updatedAt: animal.updated_at || animal.updatedAt,
+        updatedBy: animal.updated_by || animal.updatedBy,
+        status: animal.status || 'pending',
+        ownerName: animal.owner_name || animal.ownerName || '',
+        earTag: animal.ear_tag || animal.earTag || '',
+        location: animal.location || '',
+        notes: animal.notes || '',
+        predictedBreed: animal.predicted_breed || animal.predictedBreed || animal.breed || '',
+        breed: animal.breed || animal.predicted_breed || animal.predictedBreed || '',
+        ageMonths: animal.age_months || animal.ageMonths || null,
+        gender: animal.gender || '',
+        imageUrls: animal.image_urls || animal.imageUrls || animal.images || [],
+        images: animal.image_urls || animal.imageUrls || animal.images || [],
+        gps: animal.gps || null,
+        capturedAt: animal.captured_at || animal.capturedAt || null,
+        species: animal.species || '',
+        healthStatus: animal.health_status || animal.healthStatus || 'healthy',
+        vaccinationStatus: animal.vaccination_status || animal.vaccinationStatus || 'unknown',
+        weight: animal.weight || null,
+        approvedBy: animal.approved_by || animal.approvedBy || null,
+        approvedAt: animal.approved_at || animal.approvedAt || null
+      };
+    });
     
     console.log(`✅ Returning ${mappedAnimals.length} animals to frontend`);
     res.json(mappedAnimals);
