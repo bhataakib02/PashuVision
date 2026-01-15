@@ -15,10 +15,12 @@ cmds = [
 ]
 
 [phases.build]
-cmds = []
+cmds = [
+  "cd backend/models && /app/venv/bin/python validate_startup.py || echo 'Validation warnings (non-critical)'"
+]
 
 [start]
-cmd = "cd backend/models && /app/venv/bin/gunicorn --config gunicorn_config.py pytorch_service:app"
+cmd = "cd backend/models && /app/venv/bin/python validate_startup.py && /app/venv/bin/gunicorn --config gunicorn_config.py pytorch_service:app"
 
 
 

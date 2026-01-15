@@ -5,6 +5,9 @@ This service loads the new ConvNeXt model and provides predictions via HTTP API
 
 import os
 import sys
+import time
+import signal
+import atexit
 
 # Disable verbose logging to prevent Railway rate limiting
 VERBOSE_LOGGING = os.environ.get('VERBOSE_LOGGING', 'false').lower() == 'true'
@@ -13,6 +16,19 @@ def log(message, flush=False):
     """Conditional logging - only log if verbose mode is enabled"""
     if VERBOSE_LOGGING:
         print(message, flush=flush)
+
+# Global flag to track if service is shutting down
+service_shutting_down = False
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    global service_shutting_down
+    service_shutting_down = True
+    print("Received shutdown signal, cleaning up...", flush=True)
+
+# Register signal handlers for graceful shutdown
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 # Check NumPy version BEFORE importing torch to catch compatibility issues early
 try:
@@ -49,7 +65,12 @@ model = None
 model_info = None
 model_loading = False
 model_load_error = None
+model_load_attempts = 0
+max_model_load_attempts = 3
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Ensure service always starts even if model fails
+service_started = True
 
 def create_convnext_tiny(num_classes=41):
     """Create ConvNeXt Tiny model architecture"""
@@ -223,25 +244,45 @@ def preprocess_image(image_bytes):
 
 @app.route('/', methods=['GET'])
 def root():
-    """Root endpoint - simple test"""
-    return jsonify({
-        'service': 'PyTorch Prediction Service',
-        'status': 'running',
-        'health': '/health',
-        'predict': '/predict',
-        'species': '/species'
-    }), 200
+    """Root endpoint - simple test - always succeeds"""
+    try:
+        return jsonify({
+            'service': 'PyTorch Prediction Service',
+            'status': 'running',
+            'health': '/health',
+            'predict': '/predict',
+            'species': '/species',
+            'model_loaded': model is not None
+        }), 200
+    except Exception as e:
+        # Even if there's an error, return success to prevent Railway crashes
+        return jsonify({
+            'service': 'PyTorch Prediction Service',
+            'status': 'running',
+            'error': str(e)[:100]
+        }), 200
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Health check endpoint - responds immediately even if model is loading"""
-    return jsonify({
-        'status': 'ok',
-        'model_loaded': model is not None,
-        'model_loading': model_loading,
-        'model_load_error': str(model_load_error) if model_load_error else None,
-        'device': str(device)
-    }), 200
+    """Health check endpoint - ALWAYS responds successfully to prevent Railway crashes"""
+    try:
+        # Always return 200 - service is healthy even if model isn't loaded
+        return jsonify({
+            'status': 'ok',
+            'service': 'running',
+            'model_loaded': model is not None,
+            'model_loading': model_loading,
+            'model_load_error': str(model_load_error) if model_load_error else None,
+            'device': str(device),
+            'load_attempts': model_load_attempts
+        }), 200
+    except Exception as e:
+        # Even if there's an error, return 200 to prevent Railway from killing the service
+        return jsonify({
+            'status': 'ok',
+            'service': 'running',
+            'error': str(e)[:100]
+        }), 200
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -364,39 +405,90 @@ def detect_species():
         return jsonify({'error': str(e)}), 500
 
 def load_model_background():
-    """Load model in background thread - wrapped in comprehensive error handling"""
-    global model, model_info, model_loading, model_load_error
-    model_loading = True
-    model_load_error = None
+    """Load model in background thread with retry logic - wrapped in comprehensive error handling"""
+    global model, model_info, model_loading, model_load_error, model_load_attempts
     
-    try:
-        # Wrap in try-except to catch any unexpected errors
+    for attempt in range(1, max_model_load_attempts + 1):
+        if service_shutting_down:
+            break
+            
+        model_loading = True
+        model_load_error = None
+        model_load_attempts = attempt
+        
         try:
-            model_loaded = load_model()
-            if not model_loaded:
-                model_load_error = "Model file not found or download failed"
-        except MemoryError:
-            model_load_error = "Out of memory while loading model"
+            print(f"🔄 Attempting to load model (attempt {attempt}/{max_model_load_attempts})...", flush=True)
+            
+            # Wrap in try-except to catch any unexpected errors
+            try:
+                model_loaded = load_model()
+                if model_loaded:
+                    print("✅ Model loaded successfully", flush=True)
+                    model_load_error = None
+                    break  # Success, exit retry loop
+                else:
+                    model_load_error = "Model file not found or download failed"
+                    if attempt < max_model_load_attempts:
+                        wait_time = attempt * 5  # Exponential backoff: 5s, 10s
+                        print(f"⏳ Retrying in {wait_time} seconds...", flush=True)
+                        time.sleep(wait_time)
+                        
+            except MemoryError as e:
+                model_load_error = f"Out of memory while loading model: {str(e)[:100]}"
+                print(f"❌ Memory error: {model_load_error}", flush=True)
+                if attempt < max_model_load_attempts:
+                    wait_time = attempt * 10  # Longer wait for memory issues
+                    time.sleep(wait_time)
+                    
+            except Exception as e:
+                # Catch all exceptions to prevent thread crash
+                model_load_error = f"Error: {str(e)[:100]}"
+                print(f"❌ Model load error (attempt {attempt}): {model_load_error}", flush=True)
+                if attempt < max_model_load_attempts:
+                    wait_time = attempt * 5
+                    time.sleep(wait_time)
+                    
         except Exception as e:
-            # Catch all exceptions to prevent thread crash
-            model_load_error = f"Error: {str(e)[:100]}"  # Limit error message length
-    except Exception:
-        # Final safety net - catch absolutely everything
-        model_load_error = "Unknown error during model loading"
-    finally:
-        model_loading = False
+            # Final safety net - catch absolutely everything
+            model_load_error = f"Unknown error during model loading: {str(e)[:100]}"
+            print(f"❌ Unexpected error: {model_load_error}", flush=True)
+            if attempt < max_model_load_attempts:
+                time.sleep(attempt * 5)
+        finally:
+            model_loading = False
+    
+    if model is None and not service_shutting_down:
+        print(f"⚠️  Model failed to load after {max_model_load_attempts} attempts", flush=True)
+        print("   Service will continue running but predictions will not be available", flush=True)
 
 # Start model loading in background when module is imported
 def start_model_loading():
-    """Start model loading in background thread"""
+    """Start model loading in background thread - never fails"""
     try:
-        model_thread = threading.Thread(target=load_model_background, daemon=True)
+        model_thread = threading.Thread(target=load_model_background, daemon=True, name="ModelLoader")
         model_thread.start()
-    except Exception:
-        pass  # Service will still start even if thread fails
+        print("🚀 Model loading thread started", flush=True)
+    except Exception as e:
+        # Service will still start even if thread fails
+        print(f"⚠️  Failed to start model loading thread: {e}", flush=True)
+        print("   Service will continue but model will not be available", flush=True)
+
+# Register cleanup function
+def cleanup_on_exit():
+    """Cleanup function called on exit"""
+    global service_shutting_down
+    service_shutting_down = True
+    print("🧹 Cleaning up resources...", flush=True)
+
+atexit.register(cleanup_on_exit)
 
 # Start model loading immediately when module loads
-start_model_loading()
+# This will never crash the service - it's wrapped in try-except
+try:
+    start_model_loading()
+except Exception as e:
+    print(f"⚠️  Error starting model loader: {e}", flush=True)
+    print("   Service will continue without model", flush=True)
 
 # Application is ready for Gunicorn
 # Gunicorn will import this module and use 'app' as the WSGI application

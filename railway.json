@@ -5,10 +5,11 @@
     "dockerfilePath": null
   },
   "deploy": {
-    "startCommand": "cd backend/models && /app/venv/bin/gunicorn --config gunicorn_config.py pytorch_service:app",
+    "startCommand": "cd backend/models && /app/venv/bin/python validate_startup.py && /app/venv/bin/gunicorn --config gunicorn_config.py pytorch_service:app",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 600,
+    "healthcheckInterval": 30,
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 3
+    "restartPolicyMaxRetries": 5
   }
 }
