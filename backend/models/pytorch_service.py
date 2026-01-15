@@ -241,6 +241,17 @@ def preprocess_image(image_bytes):
         print(f"Error preprocessing image: {e}")
         raise
 
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint - simple test"""
+    return jsonify({
+        'service': 'PyTorch Prediction Service',
+        'status': 'running',
+        'health': '/health',
+        'predict': '/predict',
+        'species': '/species'
+    }), 200
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint - responds immediately even if model is loading"""
@@ -406,30 +417,49 @@ def load_model_background():
         model_loading = False
 
 if __name__ == '__main__':
+    # Force stdout/stderr to be unbuffered for Railway logs
+    sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
+    sys.stderr.reconfigure(line_buffering=True) if hasattr(sys.stderr, 'reconfigure') else None
+    
     try:
-        print("🚀 Starting PyTorch Prediction Service...")
-        print(f"   Device: {device}")
-        print(f"   Working directory: {os.getcwd()}")
-        print(f"   Script location: {os.path.abspath(__file__)}")
-        print(f"   Python version: {sys.version}")
-        print(f"   Python executable: {sys.executable}")
+        print("🚀 Starting PyTorch Prediction Service...", flush=True)
+        print(f"   Device: {device}", flush=True)
+        print(f"   Working directory: {os.getcwd()}", flush=True)
+        print(f"   Script location: {os.path.abspath(__file__)}", flush=True)
+        print(f"   Python version: {sys.version}", flush=True)
+        print(f"   Python executable: {sys.executable}", flush=True)
         
         # Start model loading in background thread
-        model_thread = threading.Thread(target=load_model_background, daemon=True)
-        model_thread.start()
-        print("   Model loading started in background thread")
+        try:
+            model_thread = threading.Thread(target=load_model_background, daemon=True)
+            model_thread.start()
+            print("   Model loading started in background thread", flush=True)
+        except Exception as e:
+            print(f"   ⚠️  Could not start model loading thread: {e}", flush=True)
+            print("   Service will start anyway, but model won't be available", flush=True)
         
         # Start Flask server immediately (don't wait for model)
         port = int(os.environ.get('PORT', 5001))
-        print(f"✅ Starting Flask server immediately on port {port}")
-        print(f"   Health check available at: http://0.0.0.0:{port}/health")
-        print(f"   Environment PORT variable: {os.environ.get('PORT', 'not set')}")
-        print(f"   Model will load in background - /predict will work once model is ready")
+        print(f"✅ Starting Flask server immediately on port {port}", flush=True)
+        print(f"   Health check available at: http://0.0.0.0:{port}/health", flush=True)
+        print(f"   Environment PORT variable: {os.environ.get('PORT', 'not set')}", flush=True)
+        print(f"   Model will load in background - /predict will work once model is ready", flush=True)
         
-        # Start the Flask server (this blocks)
-        app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+        # Ensure Flask uses the correct host and port
+        # Use threaded=True for better concurrency
+        try:
+            app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)
+        except OSError as e:
+            if "Address already in use" in str(e):
+                print(f"❌ Port {port} is already in use", flush=True)
+                sys.exit(1)
+            else:
+                raise
+    except KeyboardInterrupt:
+        print("\n⚠️  Service interrupted by user", flush=True)
+        sys.exit(0)
     except Exception as e:
-        print(f"❌ Fatal error starting service: {e}")
+        print(f"❌ Fatal error starting service: {e}", flush=True)
         import traceback
         traceback.print_exc()
         sys.exit(1)
