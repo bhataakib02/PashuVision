@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Header from '../components/Header.jsx'
+import { getPhotoSource } from '../utils/photoUtils.js'
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([])
@@ -676,10 +677,14 @@ export default function AdminUsers() {
               <div className="stack" style={{ gap: '20px' }}>
                 {/* Profile Photo */}
                 <div style={{ textAlign: 'center' }}>
-                  {(viewingUser.photoUrl || viewingUser.photoBase64) ? (
-                    <img 
-                      src={viewingUser.photoBase64 || (viewingUser.photoUrl?.startsWith('data:') ? viewingUser.photoUrl : (viewingUser.photoUrl?.startsWith('/uploads/') ? `${window.location.origin}${viewingUser.photoUrl}` : viewingUser.photoUrl))} 
-                      alt="Profile" 
+                  {(() => {
+                    const photoSrc = getPhotoSource(viewingUser);
+                    if (!photoSrc) return null;
+                    
+                    return (
+                      <img 
+                        src={photoSrc} 
+                        alt="Profile" 
                       style={{
                         width: '150px',
                         height: '150px',
@@ -702,7 +707,7 @@ export default function AdminUsers() {
                     height: '150px',
                     borderRadius: '12px',
                     background: '#e0e0e0',
-                    display: (viewingUser.photoUrl || viewingUser.photoBase64) ? 'none' : 'flex',
+                    display: getPhotoSource(viewingUser) ? 'none' : 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '64px',

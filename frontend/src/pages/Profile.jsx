@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Header from '../components/Header.jsx'
+import { getPhotoSource, cleanInvalidPhotosFromStorage, validateProfilePhoto } from '../utils/photoUtils.js'
 
 export default function Profile() {
   const [profile, setProfile] = useState(null)
@@ -25,6 +26,9 @@ export default function Profile() {
   }, [])
 
   useEffect(() => {
+    // Clean invalid photos from localStorage on mount
+    cleanInvalidPhotosFromStorage()
+    
     const token = localStorage.getItem('token')
     if (!token) {
       setError('Login required')
@@ -41,12 +45,15 @@ export default function Profile() {
         console.log('Profile loaded:', p)
         console.log('Photo URL:', p.photoUrl)
         console.log('Photo Base64:', p.photoBase64 ? 'Present' : 'Not present')
-        setProfile(p)
-        setName(p.name || '')
-        setEmail(p.email || '')
-        setPhone(p.phone || '')
-        setRegion(p.region || '')
-        setLanguage(p.language || '')
+        
+        // Validate and clean profile photo data
+        const cleanedProfile = validateProfilePhoto(p)
+        setProfile(cleanedProfile)
+        setName(cleanedProfile.name || '')
+        setEmail(cleanedProfile.email || '')
+        setPhone(cleanedProfile.phone || '')
+        setRegion(cleanedProfile.region || '')
+        setLanguage(cleanedProfile.language || '')
         setError('')
       })
       .catch(e => {
@@ -169,25 +176,17 @@ export default function Profile() {
                     display: 'block'
                   }} 
                 />
-              ) : (profile?.photoUrl || profile?.photoBase64) ? (() => {
-                // Determine the photo source: prefer base64, then check if photoUrl is base64, otherwise use photoUrl as file path
-                let photoSrc = profile.photoBase64;
-                if (!photoSrc && profile.photoUrl) {
-                  if (profile.photoUrl.startsWith('data:')) {
-                    // photoUrl is already a base64 data URL
-                    photoSrc = profile.photoUrl;
-                  } else if (profile.photoUrl.startsWith('/uploads/')) {
-                    // File path - construct full URL with cache busting
-                    photoSrc = `${window.location.origin}${profile.photoUrl}?t=${Date.now()}`;
-                  } else {
-                    // External URL or other format
-                    photoSrc = `${profile.photoUrl}?t=${Date.now()}`;
-                  }
+              ) : (() => {
+                // PERMANENT FIX: Use utility function to get valid photo source
+                const photoSrc = getPhotoSource(profile);
+                
+                if (!photoSrc) {
+                  return null; // No valid photo, show placeholder
                 }
                 
                 return (
                   <img 
-                    key={`photo-${Date.now()}-${profile.photoUrl || profile.photoBase64 || 'none'}`}
+                    key={`photo-${Date.now()}-${photoSrc.substring(0, 50)}`}
                     src={photoSrc} 
                     alt="avatar" 
                     onError={(e) => {
@@ -202,9 +201,13 @@ export default function Profile() {
                         placeholder.style.display = 'flex'
                         console.log('✅ Showing placeholder instead')
                       }
-                      // If photo URL is a file path (not base64), it won't work on Vercel
-                      if (profile.photoUrl && profile.photoUrl.startsWith('/uploads/') && !profile.photoBase64) {
-                        setError('⚠️ Your profile photo is stored as a file path and cannot be displayed on this server. Please select a new photo and click "Save Changes" to fix this.')
+                      // PERMANENT FIX: Clean invalid photo from profile and localStorage
+                      if (profile?.photoUrl && profile.photoUrl.startsWith('/uploads/') && !profile.photoBase64) {
+                        console.warn('🧹 Removing invalid file-based photo from profile');
+                        const cleanedProfile = { ...profile, photoUrl: null };
+                        setProfile(cleanedProfile);
+                        cleanInvalidPhotosFromStorage();
+                        setError('⚠️ Your profile photo was stored as a file path and cannot be displayed. Please select a new photo and click "Save Changes" to fix this.')
                       } else {
                         setError('Profile photo could not be loaded. Please re-upload your photo.')
                       }
