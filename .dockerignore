@@ -1,0 +1,27 @@
+# Exclude unnecessary files from the Docker build context
+.git
+.gitignore
+node_modules
+npm-debug.log
+yarn.lock
+pnpm-lock.yaml
+
+frontend/
+backend/node_modules/
+backend/package-lock.json
+
+# Large data / image directories that are not needed in the image
+backend/data/
+
+# IDE / editor configs
+.vscode/
+.idea/
+.cursor/
+
+# OS files
+*.log
+*.tmp
+*.swp
+*.DS_Store
+
+

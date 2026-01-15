@@ -1,10 +1,10 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "backend/models/Dockerfile"
+    "builder": "NIXPACKS"
   },
   "deploy": {
+    "startCommand": "cd backend/models && python pytorch_service.py",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE"

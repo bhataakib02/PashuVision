@@ -9,8 +9,12 @@ RUN apt-get update && apt-get install -y git git-lfs curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
+# First install lightweight CPU-only PyTorch wheels from the official index,
+# then install the remaining Python dependencies from requirements.txt.
 COPY backend/models/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.1.0+cpu torchvision==0.16.0+cpu && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy service files
 COPY backend/models/pytorch_service.py .
