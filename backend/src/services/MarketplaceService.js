@@ -145,7 +145,21 @@ class MarketplaceService {
 
   loadListings() {
     try {
-      const listingsFile = path.join(__dirname, '..', '..', 'data', 'marketplace.json');
+      // Use /tmp for Vercel serverless, regular data dir for local/dev
+      const dataDir = process.env.VERCEL ? '/tmp' : path.join(__dirname, '..', '..', 'data');
+      const listingsFile = path.join(dataDir, 'marketplace.json');
+      
+      // Ensure directory exists
+      if (!fs.existsSync(dataDir)) {
+        try {
+          fs.mkdirSync(dataDir, { recursive: true });
+        } catch (mkdirError) {
+          console.warn('Could not create data directory, using in-memory storage:', mkdirError.message);
+          this.listings = this.services;
+          return;
+        }
+      }
+      
       if (fs.existsSync(listingsFile)) {
         this.listings = JSON.parse(fs.readFileSync(listingsFile, 'utf8'));
       } else {
@@ -160,10 +174,24 @@ class MarketplaceService {
 
   saveListings() {
     try {
-      const listingsFile = path.join(__dirname, '..', '..', 'data', 'marketplace.json');
+      // Use /tmp for Vercel serverless, regular data dir for local/dev
+      const dataDir = process.env.VERCEL ? '/tmp' : path.join(__dirname, '..', '..', 'data');
+      const listingsFile = path.join(dataDir, 'marketplace.json');
+      
+      // Ensure directory exists
+      if (!fs.existsSync(dataDir)) {
+        try {
+          fs.mkdirSync(dataDir, { recursive: true });
+        } catch (mkdirError) {
+          console.warn('Could not create data directory, skipping save:', mkdirError.message);
+          return;
+        }
+      }
+      
       fs.writeFileSync(listingsFile, JSON.stringify(this.listings, null, 2));
     } catch (error) {
       console.error('Error saving marketplace listings:', error);
+      // Don't throw - allow service to continue without file persistence
     }
   }
 

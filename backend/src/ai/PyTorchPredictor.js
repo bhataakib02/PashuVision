@@ -55,14 +55,17 @@ class PyTorchPredictor {
                                   !process.env.PYTORCH_SERVICE_URL.startsWith('http://localhost') &&
                                   !process.env.PYTORCH_SERVICE_URL.startsWith('http://127.0.0.1');
     
-    // Check if .pth file exists locally OR if external service URL is configured
-    if (fs.existsSync(this.modelPathPth) || hasExternalServiceUrl) {
+    const hasLocalModel = fs.existsSync(this.modelPathPth);
+    
+    // If external service URL is set, always try to use it (even if local file doesn't exist)
+    // If only local file exists, check local service
+    if (hasExternalServiceUrl || hasLocalModel) {
       // Check if Python service is running (with retry)
-      let retries = 3;
+      let retries = hasExternalServiceUrl ? 5 : 3; // More retries for external services
       for (let i = 0; i < retries; i++) {
         try {
           // Create a timeout promise (longer timeout for external services)
-          const timeoutMs = hasExternalServiceUrl ? 5000 : 2000;
+          const timeoutMs = hasExternalServiceUrl ? 10000 : 2000;
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
           );
@@ -72,29 +75,33 @@ class PyTorchPredictor {
           
           if (response.ok) {
             const data = await response.json();
-            if (data.model_loaded) {
-              this.usePythonService = true;
-              console.log('✅ Using Python PyTorch service for predictions');
-              console.log(`   Service URL: ${this.pythonServiceUrl}`);
-              return;
-            }
+            // Accept service even if model not loaded yet (it will start anyway)
+            this.usePythonService = true;
+            console.log('✅ Using Python PyTorch service for predictions');
+            console.log(`   Service URL: ${this.pythonServiceUrl}`);
+            console.log(`   Model loaded: ${data.model_loaded || false}`);
+            return;
           }
         } catch (error) {
           if (i === retries - 1) {
             // Last retry failed
             if (hasExternalServiceUrl) {
-              console.log('❌ External Python PyTorch service not available');
+              console.log('⚠️  External Python PyTorch service not responding');
               console.log(`   Configured URL: ${this.pythonServiceUrl}`);
-              console.log('   Please ensure the external service is deployed and accessible.');
+              console.log('   Will attempt to use service anyway (may fail if service is down)');
+              // Still set usePythonService to true if external URL is configured
+              // The actual request will fail gracefully
+              this.usePythonService = true;
             } else {
               console.log('❌ Python PyTorch service not available');
-            console.log(`   Start the service with: cd backend/models && python pytorch_service.py`);
-            console.log(`   Service URL: ${this.pythonServiceUrl}`);
+              console.log(`   Start the service with: cd backend/models && python pytorch_service.py`);
+              console.log(`   Service URL: ${this.pythonServiceUrl}`);
+              console.log('   Predictions will fail until service is running.');
             }
-            console.log('   Predictions will fail until service is running.');
           } else {
-            // Wait a bit before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Wait a bit before retrying (longer wait for external services)
+            const waitTime = hasExternalServiceUrl ? 2000 : 1000;
+            await new Promise(resolve => setTimeout(resolve, waitTime));
           }
         }
       }
