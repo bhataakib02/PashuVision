@@ -5,7 +5,7 @@
     "dockerfilePath": null
   },
   "deploy": {
-    "startCommand": "python pytorch_service.py",
+    "startCommand": "cd backend/models && /app/venv/bin/python pytorch_service.py",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE"
