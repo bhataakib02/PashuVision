@@ -1,5 +1,6 @@
 # Force Nixpacks to use Python ONLY - Override auto-detection
-# This configuration explicitly defines Python-only phases to prevent Node.js detection
+# Explicitly specify Python as the only provider to prevent Node.js detection
+providers = ["python"]
 
 [phases.setup]
 nixPkgs = ["python311", "pip"]
