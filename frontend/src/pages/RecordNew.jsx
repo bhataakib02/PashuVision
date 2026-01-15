@@ -29,6 +29,7 @@ export default function RecordNew() {
   const [locationError, setLocationError] = useState('')
   const [saving, setSaving] = useState(false)
   const [predicting, setPredicting] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState(0)
   const [imageQuality, setImageQuality] = useState({ blur: false, dark: false, pose: 'good' })
   const [cameraMode, setCameraMode] = useState(false)
   const [voiceInput, setVoiceInput] = useState(false)
@@ -260,11 +261,24 @@ export default function RecordNew() {
     setSuccess('')
     setPred(null)
     setPredicting(true)
+    setLoadingProgress(0)
+    
+    // Simulate progress during loading (for model loading feedback)
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        // Gradually increase progress, but cap at 85% until actual response
+        if (prev < 85) {
+          return Math.min(prev + Math.random() * 3, 85)
+        }
+        return prev
+      })
+    }, 500) // Update every 500ms
     
     try {
       const token = localStorage.getItem('token')
       if (!token) {
         setError('Login required. Please log in to use AI prediction.')
+        clearInterval(progressInterval)
         return
       }
       
@@ -288,6 +302,8 @@ export default function RecordNew() {
       })
       
       clearTimeout(timeoutId)
+      clearInterval(progressInterval)
+      setLoadingProgress(90) // Almost done
       
       let data
       if (!res.ok) {
@@ -333,6 +349,7 @@ export default function RecordNew() {
         data = await res.json()
       }
       
+      setLoadingProgress(100) // Complete
       setPred(data)
       
       // Auto-fill breed information
@@ -373,7 +390,9 @@ export default function RecordNew() {
       setError(errorMsg)
       setSuccess('')
     } finally {
+      clearInterval(progressInterval)
       setPredicting(false)
+      setLoadingProgress(0)
     }
   }
 
@@ -643,20 +662,61 @@ export default function RecordNew() {
                 }}>
                   ⏳ First request may take 30-90 seconds (model loading)
                 </p>
+                
+                {/* Progress Bar with Percentage */}
                 <div style={{
                   width: '100%',
-                  height: '4px',
-                  backgroundColor: '#e0e0e0',
-                  borderRadius: '2px',
-                  overflow: 'hidden',
-                  marginTop: 12
+                  marginBottom: 8
                 }}>
                   <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 8
+                  }}>
+                    <span style={{ 
+                      fontSize: '0.9rem', 
+                      color: '#2196F3', 
+                      fontWeight: '600' 
+                    }}>
+                      Loading...
+                    </span>
+                    <span style={{ 
+                      fontSize: '1.1rem', 
+                      color: '#1976D2', 
+                      fontWeight: 'bold' 
+                    }}>
+                      {Math.round(loadingProgress)}%
+                    </span>
+                  </div>
+                  <div style={{
                     width: '100%',
-                    height: '100%',
-                    backgroundColor: '#2196F3',
-                    animation: 'pulse 1.5s ease-in-out infinite'
-                  }}></div>
+                    height: '8px',
+                    backgroundColor: '#e0e0e0',
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                    position: 'relative'
+                  }}>
+                    <div style={{
+                      width: `${loadingProgress}%`,
+                      height: '100%',
+                      backgroundColor: loadingProgress < 50 ? '#ff9800' : loadingProgress < 85 ? '#2196F3' : '#4CAF50',
+                      borderRadius: '4px',
+                      transition: 'width 0.3s ease, background-color 0.3s ease',
+                      boxShadow: '0 2px 4px rgba(33, 150, 243, 0.3)'
+                    }}></div>
+                  </div>
+                </div>
+                
+                {/* Animated dots for visual feedback */}
+                <div style={{
+                  fontSize: '1.2rem',
+                  color: '#2196F3',
+                  marginTop: 12
+                }}>
+                  <span style={{ animation: 'pulse 1s ease-in-out infinite' }}>●</span>
+                  <span style={{ animation: 'pulse 1s ease-in-out infinite 0.2s' }}>●</span>
+                  <span style={{ animation: 'pulse 1s ease-in-out infinite 0.4s' }}>●</span>
                 </div>
               </div>
             )}
