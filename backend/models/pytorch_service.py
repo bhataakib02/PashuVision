@@ -13,6 +13,7 @@ import io
 import json
 import os
 import sys
+import threading
 
 app = Flask(__name__)
 CORS(app)
@@ -20,6 +21,8 @@ CORS(app)
 # Global model variable
 model = None
 model_info = None
+model_loading = False
+model_load_error = None
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def create_convnext_tiny(num_classes=41):
@@ -240,19 +243,39 @@ def preprocess_image(image_bytes):
 
 @app.route('/health', methods=['GET'])
 def health():
+    """Health check endpoint - responds immediately even if model is loading"""
     return jsonify({
         'status': 'ok',
         'model_loaded': model is not None,
+        'model_loading': model_loading,
+        'model_load_error': str(model_load_error) if model_load_error else None,
         'device': str(device)
-    })
+    }), 200
 
 @app.route('/predict', methods=['POST'])
 def predict():
     """Predict breed from image"""
-    global model, model_info
+    global model, model_info, model_loading, model_load_error
     
     if model is None:
-        return jsonify({'error': 'Model not loaded'}), 500
+        if model_loading:
+            return jsonify({
+                'error': 'Model is still loading',
+                'status': 'loading',
+                'message': 'Please wait a few moments and try again'
+            }), 503
+        elif model_load_error:
+            return jsonify({
+                'error': 'Model failed to load',
+                'status': 'error',
+                'message': model_load_error
+            }), 503
+        else:
+            return jsonify({
+                'error': 'Model not loaded',
+                'status': 'not_loaded',
+                'message': 'Model is not available'
+            }), 503
     
     try:
         # Get image from request
@@ -295,10 +318,27 @@ def predict():
 @app.route('/species', methods=['POST'])
 def detect_species():
     """Detect species (cattle/buffalo/non_animal)"""
-    global model, model_info
+    global model, model_info, model_loading, model_load_error
     
     if model is None:
-        return jsonify({'error': 'Model not loaded'}), 500
+        if model_loading:
+            return jsonify({
+                'error': 'Model is still loading',
+                'status': 'loading',
+                'message': 'Please wait a few moments and try again'
+            }), 503
+        elif model_load_error:
+            return jsonify({
+                'error': 'Model failed to load',
+                'status': 'error',
+                'message': model_load_error
+            }), 503
+        else:
+            return jsonify({
+                'error': 'Model not loaded',
+                'status': 'not_loaded',
+                'message': 'Model is not available'
+            }), 503
     
     try:
         if 'image' not in request.files:
@@ -332,16 +372,14 @@ def detect_species():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
+def load_model_background():
+    """Load model in background thread"""
+    global model, model_info, model_loading, model_load_error
+    model_loading = True
+    model_load_error = None
+    
     try:
-        print("🚀 Starting PyTorch Prediction Service...")
-        print(f"   Device: {device}")
-        print(f"   Working directory: {os.getcwd()}")
-        print(f"   Script location: {os.path.abspath(__file__)}")
-        print(f"   Python version: {sys.version}")
-        print(f"   Python executable: {sys.executable}")
-        
-        # List directory contents for debugging
+        print("🔄 Starting background model loading...")
         script_dir = os.path.dirname(os.path.abspath(__file__))
         print(f"   Script directory: {script_dir}")
         print(f"   Contents of {script_dir}:")
@@ -353,25 +391,43 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"      Error listing directory: {e}")
         
-        # Try to load model, but start server anyway
-        try:
-            model_loaded = load_model()
-            if not model_loaded:
-                print("⚠️  Warning: Model not loaded. Service will start but /predict will fail.")
-                print("   Health endpoint will still work.")
-        except Exception as e:
-            print(f"⚠️  Error during model loading: {e}")
-            import traceback
-            traceback.print_exc()
-            print("   Service will start anyway, but /predict will fail.")
+        model_loaded = load_model()
+        if model_loaded:
+            print("✅ Model loaded successfully in background")
+        else:
+            model_load_error = "Model file not found or download failed"
+            print(f"⚠️  {model_load_error}")
+    except Exception as e:
+        model_load_error = str(e)
+        print(f"❌ Error loading model in background: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        model_loading = False
+
+if __name__ == '__main__':
+    try:
+        print("🚀 Starting PyTorch Prediction Service...")
+        print(f"   Device: {device}")
+        print(f"   Working directory: {os.getcwd()}")
+        print(f"   Script location: {os.path.abspath(__file__)}")
+        print(f"   Python version: {sys.version}")
+        print(f"   Python executable: {sys.executable}")
         
+        # Start model loading in background thread
+        model_thread = threading.Thread(target=load_model_background, daemon=True)
+        model_thread.start()
+        print("   Model loading started in background thread")
+        
+        # Start Flask server immediately (don't wait for model)
         port = int(os.environ.get('PORT', 5001))
-        print(f"✅ Starting server on port {port}")
+        print(f"✅ Starting Flask server immediately on port {port}")
         print(f"   Health check available at: http://0.0.0.0:{port}/health")
         print(f"   Environment PORT variable: {os.environ.get('PORT', 'not set')}")
+        print(f"   Model will load in background - /predict will work once model is ready")
         
-        # Start the Flask server
-        app.run(host='0.0.0.0', port=port, debug=False)
+        # Start the Flask server (this blocks)
+        app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
     except Exception as e:
         print(f"❌ Fatal error starting service: {e}")
         import traceback
