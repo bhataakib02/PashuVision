@@ -394,22 +394,27 @@ if __name__ == '__main__':
         # Start Flask server immediately (don't wait for model)
         port = int(os.environ.get('PORT', 5001))
         
+        # Suppress Flask/Werkzeug logging completely
+        import logging
+        logging.getLogger('werkzeug').setLevel(logging.ERROR)
+        logging.getLogger('flask').setLevel(logging.ERROR)
+        
         # Ensure Flask uses the correct host and port
         # Use threaded=True for better concurrency
+        # Disable Flask's default logging
+        import warnings
+        warnings.filterwarnings('ignore')
+        
         try:
             app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)
         except OSError as e:
             if "Address already in use" in str(e):
-                print(f"❌ Port {port} is already in use", flush=True)
                 sys.exit(1)
             else:
                 raise
     except KeyboardInterrupt:
-        print("\n⚠️  Service interrupted by user", flush=True)
         sys.exit(0)
     except Exception as e:
-        print(f"❌ Fatal error starting service: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Fatal error: {e}", flush=True)
         sys.exit(1)
 
