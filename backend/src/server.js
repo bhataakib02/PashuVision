@@ -798,15 +798,45 @@ app.post('/api/animals', authMiddleware, upload.array('images', 6), async (req, 
     } = req.body || {};
     const id = nanoid();
     const imageUrls = [];
-    if (Array.isArray(req.files)) {
+    
+    // Handle image uploads with error handling
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      // Ensure images directory exists
+      if (!fs.existsSync(IMAGES_DIR)) {
+        fs.mkdirSync(IMAGES_DIR, { recursive: true });
+      }
+      
       for (let i = 0; i < req.files.length; i++) {
         const f = req.files[i];
-        const ext = path.extname(f.originalname || '.jpg') || '.jpg';
-        const fileName = `${id}_${i}${ext}`;
-        const filePath = path.join(IMAGES_DIR, fileName);
-        fs.writeFileSync(filePath, f.buffer);
-        imageUrls.push(`/uploads/${fileName}`);
+        try {
+          // Validate file
+          if (!f.buffer || f.buffer.length === 0) {
+            console.warn(`⚠️  Image ${i} has no buffer data, skipping`);
+            continue;
+          }
+          
+          // Validate file size (max 10MB)
+          if (f.buffer.length > 10 * 1024 * 1024) {
+            console.warn(`⚠️  Image ${i} is too large (${(f.buffer.length / 1024 / 1024).toFixed(2)}MB), skipping`);
+            continue;
+          }
+          
+          const ext = path.extname(f.originalname || '.jpg') || '.jpg';
+          const fileName = `${id}_${i}${ext}`;
+          const filePath = path.join(IMAGES_DIR, fileName);
+          
+          // Write file with error handling
+          fs.writeFileSync(filePath, f.buffer);
+          imageUrls.push(`/uploads/${fileName}`);
+          console.log(`✅ Saved image ${i}: ${fileName}`);
+        } catch (imageError) {
+          console.error(`❌ Error saving image ${i}:`, imageError.message);
+          // Continue with other images even if one fails
+        }
       }
+    } else if (!req.files || req.files.length === 0) {
+      // No images uploaded - this is allowed but log it
+      console.warn('⚠️  No images uploaded with animal record');
     }
     
     // Calculate age_months from years and months if provided separately
@@ -848,14 +878,33 @@ app.post('/api/animals', authMiddleware, upload.array('images', 6), async (req, 
           // Extract breed information DIRECTLY from model prediction
           // Parse prediction data if provided, or use available request data
           let predictionInfo = null;
-          if (predictionData && typeof predictionData === 'string') {
-            try {
-              predictionInfo = JSON.parse(predictionData);
-            } catch (e) {
-              console.warn('Could not parse predictionData:', e);
+          if (predictionData) {
+            if (typeof predictionData === 'string') {
+              try {
+                predictionInfo = JSON.parse(predictionData);
+              } catch (e) {
+                console.warn('Could not parse predictionData string:', e.message);
+                // Try to extract from string if it's not valid JSON
+                try {
+                  predictionInfo = JSON.parse(decodeURIComponent(predictionData));
+                } catch (e2) {
+                  console.warn('Could not parse predictionData after decode:', e2.message);
+                }
+              }
+            } else if (typeof predictionData === 'object') {
+              predictionInfo = predictionData;
             }
-          } else if (predictionData && typeof predictionData === 'object') {
-            predictionInfo = predictionData;
+          }
+          
+          // Log prediction info for debugging
+          if (predictionInfo) {
+            console.log('📊 Using prediction data:', {
+              hasPredictions: !!predictionInfo.predictions,
+              species: predictionInfo.species,
+              speciesConfidence: predictionInfo.speciesConfidence
+            });
+          } else {
+            console.log('⚠️  No prediction info available, using form data only');
           }
           
           // Extract breed information DIRECTLY from model prediction ONLY

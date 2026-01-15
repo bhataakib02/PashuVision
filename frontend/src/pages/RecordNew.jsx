@@ -409,11 +409,23 @@ export default function RecordNew() {
       fd.append('healthStatus', form.healthStatus || 'healthy')
       fd.append('vaccinationStatus', form.vaccinationStatus || 'unknown')
       
-      // Breed data
+      // Breed data - send full prediction data if available
       if (form.predictedBreed) {
         fd.append('predictedBreed', form.predictedBreed)
         if (form.breedConfidence) {
-        fd.append('breedConfidence', form.breedConfidence)
+          fd.append('breedConfidence', form.breedConfidence)
+        }
+      }
+      
+      // Send full prediction data if available (for auto-creating breeds)
+      if (pred && pred.predictions) {
+        fd.append('predictionData', JSON.stringify(pred))
+        // Also send species data if available
+        if (pred.species) {
+          fd.append('species', pred.species)
+        }
+        if (pred.speciesConfidence) {
+          fd.append('speciesConfidence', String(pred.speciesConfidence))
         }
       }
       
