@@ -73,6 +73,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Ensure service always starts even if model fails
 service_started = True
 
+# Lazy loading flag - don't load model on startup to prevent OOM
+eager_load = os.environ.get('EAGER_LOAD_MODEL', 'false').lower() == 'true'
+
 def create_convnext_tiny(num_classes=41):
     """Create ConvNeXt Tiny model architecture"""
     try:
@@ -139,14 +142,20 @@ def load_model():
     model_info = local_model_info
     
     try:
-        # MEMORY OPTIMIZATION: Load checkpoint with weights_only=True to reduce memory
-        # This prevents loading unnecessary metadata and reduces memory usage
+        # MEMORY OPTIMIZATION: Load checkpoint with memory-efficient settings
+        print("📦 Loading model checkpoint (this may take a moment)...", flush=True)
+        
+        # Force garbage collection before loading large checkpoint
+        gc.collect()
+        
         try:
-            # Try loading with weights_only first (PyTorch 2.0+)
-            checkpoint = torch.load(pth_path, map_location=device, weights_only=False)
-        except TypeError:
-            # Fallback for older PyTorch versions
-            checkpoint = torch.load(pth_path, map_location=device)
+            # Load checkpoint - use CPU map_location to avoid GPU memory issues
+            # This ensures we use CPU even if CUDA is detected (Railway uses CPU)
+            checkpoint = torch.load(pth_path, map_location='cpu')
+            print("✅ Checkpoint loaded successfully", flush=True)
+        except Exception as e:
+            print(f"❌ Failed to load checkpoint: {e}", flush=True)
+            return False
         
         # Extract metadata from checkpoint if available
         if isinstance(checkpoint, dict):
@@ -192,12 +201,18 @@ def load_model():
         
         # MEMORY OPTIMIZATION: Always use ConvNeXt Tiny instead of Base to reduce memory usage
         # ConvNeXt Base uses ~2-3x more memory than Tiny
-        print("💾 Using ConvNeXt Tiny model for reduced memory footprint", flush=True)
+        print("💾 Creating ConvNeXt Tiny model (memory optimized)...", flush=True)
+        
+        # Force garbage collection before creating model
+        gc.collect()
+        
         try:
             import timm
             # Force Tiny model - much smaller memory footprint (~100MB vs ~300MB)
             model = timm.create_model('convnext_tiny', pretrained=False, num_classes=num_classes)
+            print("✅ Model architecture created", flush=True)
         except Exception as e:
+            print(f"⚠️  Error creating model with timm: {e}, using fallback", flush=True)
             # Fallback to manual creation
             model = create_convnext_tiny(num_classes)
         
@@ -328,6 +343,16 @@ def predict():
     """Predict breed from image"""
     global model, model_info, model_loading, model_load_error
     
+    # LAZY LOADING: Start loading model if not already loading/loaded
+    if model is None and not model_loading and model_load_error is None:
+        print("🚀 First prediction request - starting lazy model loading", flush=True)
+        try:
+            start_model_loading()
+            # Wait a moment for loading to start
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"⚠️  Failed to start lazy loading: {e}", flush=True)
+    
     if model is None:
         if model_loading:
             return jsonify({
@@ -395,6 +420,16 @@ def detect_species():
     """Detect species (cattle/buffalo/non_animal)"""
     global model, model_info, model_loading, model_load_error
     
+    # LAZY LOADING: Start loading model if not already loading/loaded
+    if model is None and not model_loading and model_load_error is None:
+        print("🚀 First species detection request - starting lazy model loading", flush=True)
+        try:
+            start_model_loading()
+            # Wait a moment for loading to start
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"⚠️  Failed to start lazy loading: {e}", flush=True)
+    
     if model is None:
         if model_loading:
             return jsonify({
@@ -456,6 +491,12 @@ def load_model_background():
     """Load model in background thread with retry logic - wrapped in comprehensive error handling"""
     global model, model_info, model_loading, model_load_error, model_load_attempts
     
+    # MEMORY OPTIMIZATION: Add delay before loading to let service stabilize
+    # This prevents immediate OOM during startup
+    if not eager_load:
+        print("⏳ Waiting 5 seconds before model loading to stabilize service...", flush=True)
+        time.sleep(5)
+    
     for attempt in range(1, max_model_load_attempts + 1):
         if service_shutting_down:
             break
@@ -466,6 +507,20 @@ def load_model_background():
         
         try:
             print(f"🔄 Attempting to load model (attempt {attempt}/{max_model_load_attempts})...", flush=True)
+            
+            # MEMORY OPTIMIZATION: Force garbage collection before loading
+            gc.collect()
+            
+            # Check available memory (if possible)
+            try:
+                import psutil
+                mem = psutil.virtual_memory()
+                available_mb = mem.available / (1024 * 1024)
+                print(f"💾 Available memory: {available_mb:.0f} MB", flush=True)
+                if available_mb < 200:
+                    print("⚠️  Low memory detected - model loading may fail", flush=True)
+            except ImportError:
+                pass  # psutil not available, skip memory check
             
             # Wrap in try-except to catch any unexpected errors
             try:
@@ -530,13 +585,21 @@ def cleanup_on_exit():
 
 atexit.register(cleanup_on_exit)
 
-# Start model loading immediately when module loads
-# This will never crash the service - it's wrapped in try-except
-try:
-    start_model_loading()
-except Exception as e:
-    print(f"⚠️  Error starting model loader: {e}", flush=True)
-    print("   Service will continue without model", flush=True)
+# LAZY LOADING: Don't start model loading immediately - wait for first request
+# This prevents OOM during startup. Model will load on-demand when first prediction is requested.
+# Set environment variable EAGER_LOAD_MODEL=true to load immediately (not recommended for Railway)
+if eager_load:
+    # Only load immediately if explicitly requested (for testing)
+    print("⚠️  Eager model loading enabled - this may cause OOM on Railway", flush=True)
+    try:
+        start_model_loading()
+    except Exception as e:
+        print(f"⚠️  Error starting model loader: {e}", flush=True)
+        print("   Service will continue without model", flush=True)
+else:
+    # Lazy loading - model will load when first prediction request comes in
+    print("💡 Lazy model loading enabled - model will load on first prediction request", flush=True)
+    print("   This prevents OOM during startup", flush=True)
 
 # Application is ready for Gunicorn
 # Gunicorn will import this module and use 'app' as the WSGI application
