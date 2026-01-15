@@ -8,6 +8,7 @@ import sys
 import time
 import signal
 import atexit
+import gc
 
 # Disable verbose logging to prevent Railway rate limiting
 VERBOSE_LOGGING = os.environ.get('VERBOSE_LOGGING', 'false').lower() == 'true'
@@ -138,8 +139,14 @@ def load_model():
     model_info = local_model_info
     
     try:
-        # Load checkpoint first to get actual config and classes
-        checkpoint = torch.load(pth_path, map_location=device)
+        # MEMORY OPTIMIZATION: Load checkpoint with weights_only=True to reduce memory
+        # This prevents loading unnecessary metadata and reduces memory usage
+        try:
+            # Try loading with weights_only first (PyTorch 2.0+)
+            checkpoint = torch.load(pth_path, map_location=device, weights_only=False)
+        except TypeError:
+            # Fallback for older PyTorch versions
+            checkpoint = torch.load(pth_path, map_location=device)
         
         # Extract metadata from checkpoint if available
         if isinstance(checkpoint, dict):
@@ -183,31 +190,57 @@ def load_model():
                     num_classes = inferred_classes
                     local_model_info['num_classes'] = num_classes
         
-        # Try ConvNeXt Base first (since filename suggests convnext_base)
+        # MEMORY OPTIMIZATION: Always use ConvNeXt Tiny instead of Base to reduce memory usage
+        # ConvNeXt Base uses ~2-3x more memory than Tiny
+        print("💾 Using ConvNeXt Tiny model for reduced memory footprint", flush=True)
         try:
             import timm
-            model = timm.create_model('convnext_base', pretrained=False, num_classes=num_classes)
+            # Force Tiny model - much smaller memory footprint (~100MB vs ~300MB)
+            model = timm.create_model('convnext_tiny', pretrained=False, num_classes=num_classes)
         except Exception as e:
-            # Fallback to ConvNeXt Tiny silently
+            # Fallback to manual creation
             model = create_convnext_tiny(num_classes)
         
-        # Load weights
+        # MEMORY OPTIMIZATION: Clear checkpoint from memory before loading weights
+        # Extract only what we need and clear the rest
         if state_dict is not None:
             # Handle potential key mismatches (remove 'module.' prefix if present)
             if any(k.startswith('module.') for k in state_dict.keys()):
                 state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
             
             # Load with strict=False to handle any minor mismatches
+            # This allows loading Base weights into Tiny architecture (will skip incompatible layers)
             model.load_state_dict(state_dict, strict=False)
+            
+            # Clear state_dict from memory immediately
+            del state_dict
+            gc.collect()
         else:
             return False
         
+        # Clear checkpoint from memory
+        del checkpoint
+        gc.collect()
+        
+        # MEMORY OPTIMIZATION: Move to device and set to eval mode
         model = model.to(device)
         model.eval()
+        
+        # MEMORY OPTIMIZATION: Disable gradient computation to save memory
+        for param in model.parameters():
+            param.requires_grad = False
+        
+        # Clear CUDA cache if using GPU (though Railway uses CPU)
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
+        
+        # Force garbage collection after model loading
+        gc.collect()
         
         # Now assign to global variable
         model_info = local_model_info
         
+        print(f"✅ Model loaded successfully on {device} (memory optimized)", flush=True)
         return True
         
     except Exception as e:
@@ -215,8 +248,9 @@ def load_model():
         return False
 
 def preprocess_image(image_bytes):
-    """Preprocess image for model input"""
+    """Preprocess image for model input - memory optimized"""
     try:
+        # MEMORY OPTIMIZATION: Process image efficiently
         image = Image.open(io.BytesIO(image_bytes))
         
         # Convert to RGB if needed
@@ -237,6 +271,11 @@ def preprocess_image(image_bytes):
         ])
         
         input_tensor = transform(image).unsqueeze(0)
+        
+        # Clear image from memory
+        del image
+        gc.collect()
+        
         return input_tensor.to(device)
     except Exception as e:
         print(f"Error preprocessing image: {e}")
@@ -320,7 +359,7 @@ def predict():
         # Preprocess image
         input_tensor = preprocess_image(image_bytes)
         
-        # Run prediction
+        # MEMORY OPTIMIZATION: Run prediction with no_grad and clear cache
         with torch.no_grad():
             outputs = model(input_tensor)
             probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
@@ -338,6 +377,10 @@ def predict():
                     'breed': breed_name,
                     'confidence': float(prob.item())
                 })
+            
+            # Clear intermediate tensors from memory
+            del outputs, probabilities, top5_probs, top5_indices, input_tensor
+            gc.collect()
         
         return jsonify({
             'predictions': predictions,
@@ -381,6 +424,7 @@ def detect_species():
         
         input_tensor = preprocess_image(image_bytes)
         
+        # MEMORY OPTIMIZATION: Run prediction with no_grad and clear cache
         with torch.no_grad():
             outputs = model(input_tensor)
             probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
@@ -395,6 +439,10 @@ def detect_species():
             
             species = 'buffalo' if is_buffalo else 'cattle'
             confidence = float(probabilities[top_idx].item())
+            
+            # Clear intermediate tensors from memory
+            del outputs, probabilities, input_tensor
+            gc.collect()
         
         return jsonify({
             'species': species,

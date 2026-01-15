@@ -7,14 +7,14 @@ bind = f"0.0.0.0:{os.environ.get('PORT', '5001')}"
 backlog = 2048
 
 # Worker processes
-workers = 1  # Single worker for CPU-only PyTorch model
+workers = 1  # Single worker for CPU-only PyTorch model (reduces memory usage)
 worker_class = "sync"
-worker_connections = 1000
+worker_connections = 100  # Reduced from 1000 to save memory
 timeout = 300  # Increased timeout for model loading
 keepalive = 5
 
-# Threading
-threads = 2
+# Threading - reduced to save memory
+threads = 1  # Reduced from 2 to minimize memory footprint
 
 # Logging
 accesslog = "-"  # Log to stdout
@@ -41,8 +41,9 @@ preload_app = False
 graceful_timeout = 60
 
 # Restart workers after this many requests (prevents memory leaks)
-max_requests = 1000
-max_requests_jitter = 50
+# Reduced to restart more frequently and prevent memory buildup
+max_requests = 500  # Reduced from 1000 to restart workers more often
+max_requests_jitter = 25  # Reduced from 50
 
 # Worker timeout
 # Removed worker_tmp_dir - let Gunicorn use default temp directory
