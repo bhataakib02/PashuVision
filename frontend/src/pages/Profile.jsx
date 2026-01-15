@@ -9,6 +9,7 @@ export default function Profile() {
   const [region, setRegion] = useState('')
   const [language, setLanguage] = useState('')
   const [photo, setPhoto] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -73,9 +74,31 @@ export default function Profile() {
       let data = null
       try { data = await res.json() } catch {}
       if (!res.ok) throw new Error((data && data.error) || 'Save failed')
+      // Update profile with response data
       setProfile(data)
-      localStorage.setItem('user', JSON.stringify({ ...(JSON.parse(localStorage.getItem('user')||'{}')), name: data.name }))
+      // Clear photo state after successful save
+      setPhoto(null)
+      setPhotoPreview(null)
+      // Update localStorage with new profile data
+      localStorage.setItem('user', JSON.stringify({ ...(JSON.parse(localStorage.getItem('user')||'{}')), name: data.name, photoUrl: data.photoUrl }))
       setSuccess('✅ Profile updated successfully!')
+      
+      // Reload profile to ensure photo is displayed (in case of caching issues)
+      setTimeout(async () => {
+        const token = localStorage.getItem('token')
+        if (token) {
+          try {
+            const res = await fetch('/api/me', { headers: { Authorization: `Bearer ${token}` } })
+            if (res.ok) {
+              const updatedProfile = await res.json()
+              setProfile(updatedProfile)
+            }
+          } catch (e) {
+            console.error('Error reloading profile:', e)
+          }
+        }
+      }, 500)
+      
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000)
     } catch (e) {
@@ -114,9 +137,24 @@ export default function Profile() {
             alignItems: isMobile ? 'center' : 'flex-start'
           }}>
             <div className="stack" style={{ alignItems: 'center', width: '100%' }}>
-              {profile?.photoUrl ? (
+              {/* Show preview if photo is selected, otherwise show saved photo or placeholder */}
+              {photoPreview ? (
                 <img 
-                  src={profile.photoUrl} 
+                  src={photoPreview} 
+                  alt="avatar preview" 
+                  style={{ 
+                    width: isMobile ? 150 : 200, 
+                    height: isMobile ? 150 : 200, 
+                    borderRadius: 12, 
+                    objectFit: 'cover', 
+                    border: '2px solid #ddd',
+                    margin: '0 auto',
+                    display: 'block'
+                  }} 
+                />
+              ) : profile?.photoUrl ? (
+                <img 
+                  src={`${profile.photoUrl}?t=${Date.now()}`} 
                   alt="avatar" 
                   onError={(e) => {
                     e.target.style.display = 'none'
@@ -139,7 +177,7 @@ export default function Profile() {
                 height: isMobile ? 150 : 200, 
                 borderRadius: 12, 
                 background: '#e0e0e0', 
-                display: profile?.photoUrl ? 'none' : 'flex', 
+                display: (photoPreview || profile?.photoUrl) ? 'none' : 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center', 
                 fontSize: isMobile ? '64px' : '48px', 
@@ -153,7 +191,20 @@ export default function Profile() {
                 className="file" 
                 type="file" 
                 accept="image/*" 
-                onChange={e => setPhoto(e.target.files?.[0] || null)}
+                onChange={e => {
+                  const file = e.target.files?.[0] || null
+                  setPhoto(file)
+                  if (file) {
+                    // Create preview URL
+                    const reader = new FileReader()
+                    reader.onloadend = () => {
+                      setPhotoPreview(reader.result)
+                    }
+                    reader.readAsDataURL(file)
+                  } else {
+                    setPhotoPreview(null)
+                  }
+                }}
                 style={{ 
                   fontSize: isMobile ? '16px' : '14px',
                   padding: isMobile ? '12px' : '8px',
