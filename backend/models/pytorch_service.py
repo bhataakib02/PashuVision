@@ -412,30 +412,45 @@ if __name__ == '__main__':
         pass  # Service will still start even if thread fails
     
     # Start Flask server - wrap in try-except to prevent crashes
-    try:
-        port = int(os.environ.get('PORT', 5001))
-        
-        # Run Flask server - this blocks forever unless there's an error
-        app.run(
-            host='0.0.0.0',
-            port=port,
-            debug=False,
-            threaded=True,
-            use_reloader=False,
-            use_debugger=False
-        )
-    except OSError as e:
-        if "Address already in use" in str(e):
-            sys.exit(1)
-        # For other OSErrors, try to continue
-        pass
-    except KeyboardInterrupt:
-        sys.exit(0)
-    except Exception as e:
-        # Log error but don't exit - Railway will restart if needed
-        # This prevents infinite restart loops
-        import time
-        print(f"Service error: {e}", flush=True)
-        time.sleep(5)  # Wait before potential restart
-        sys.exit(1)
+    port = int(os.environ.get('PORT', 5001))
+    
+    # Use waitress or gunicorn for production, but for Railway, use Flask with proper config
+    # Ensure Flask server stays alive
+    import signal
+    
+    def signal_handler(sig, frame):
+        """Handle signals gracefully"""
+        pass  # Ignore signals to prevent unexpected exits
+    
+    # Register signal handlers
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    # Run Flask server in a loop to prevent exits
+    while True:
+        try:
+            app.run(
+                host='0.0.0.0',
+                port=port,
+                debug=False,
+                threaded=True,
+                use_reloader=False,
+                use_debugger=False
+            )
+        except OSError as e:
+            if "Address already in use" in str(e):
+                import time
+                time.sleep(2)
+                continue  # Retry after a delay
+            else:
+                import time
+                time.sleep(5)
+                continue  # Retry on other OSErrors
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            # Log error and retry - don't exit
+            import time
+            time.sleep(5)
+            continue  # Keep trying to run the server
 
