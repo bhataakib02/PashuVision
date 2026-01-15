@@ -38,10 +38,15 @@ export default function RecordDetail() {
                 <div><strong>Breed:</strong> {item.predictedBreed || '—'}</div>
                 <div><strong>Owner:</strong> {item.ownerName || '—'}</div>
                 <div><strong>Location:</strong> {item.location || '—'}</div>
+                {item.ageMonths && <div><strong>Age:</strong> {Math.floor(item.ageMonths / 12)} years {item.ageMonths % 12} months</div>}
+                {item.gender && <div><strong>Gender:</strong> {item.gender.charAt(0).toUpperCase() + item.gender.slice(1)}</div>}
+                {item.weight && <div><strong>Weight:</strong> {item.weight} kg</div>}
+                {item.healthStatus && <div><strong>Health Status:</strong> {item.healthStatus.charAt(0).toUpperCase() + item.healthStatus.slice(1).replace(/_/g, ' ')}</div>}
+                {item.vaccinationStatus && <div><strong>Vaccination Status:</strong> {item.vaccinationStatus.charAt(0).toUpperCase() + item.vaccinationStatus.slice(1).replace(/_/g, ' ')}</div>}
                 <div><strong>Status:</strong> {item.status || 'pending'}</div>
                 {item.gps && <div><strong>GPS:</strong> {item.gps.lat}, {item.gps.lng}</div>}
                 {item.capturedAt && <div><strong>Captured:</strong> {new Date(item.capturedAt).toLocaleString()}</div>}
-                <div><strong>Notes:</strong> {item.notes || '—'}</div>
+                {item.notes && <div><strong>Notes:</strong> {item.notes}</div>}
               </div>
             </div>
           )}

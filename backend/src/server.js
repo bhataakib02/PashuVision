@@ -804,7 +804,9 @@ app.get('/api/animals', authMiddleware, async (req, res) => {
       gps: animal.gps || null,
       capturedAt: animal.captured_at || animal.capturedAt || null,
       species: animal.species || '',
-      healthStatus: animal.health_status || animal.healthStatus || '',
+      healthStatus: animal.health_status || animal.healthStatus || 'healthy',
+      vaccinationStatus: animal.vaccination_status || animal.vaccinationStatus || 'unknown',
+      weight: animal.weight || null,
       approvedBy: animal.approved_by || animal.approvedBy || null,
       approvedAt: animal.approved_at || animal.approvedAt || null
     }));
@@ -815,6 +817,57 @@ app.get('/api/animals', authMiddleware, async (req, res) => {
     console.error('❌ Error fetching animals:', e);
     console.error('Error stack:', e.stack);
     res.status(500).json({ error: 'Failed to load records', details: e.message });
+  }
+});
+
+// Get single animal by ID
+app.get('/api/animals/:id', authMiddleware, async (req, res) => {
+  try {
+    const animals = await getAnimals();
+    const animal = animals.find(a => a.id === req.params.id);
+    
+    if (!animal) {
+      return res.status(404).json({ error: 'Animal record not found' });
+    }
+    
+    // Check permissions - users can only see their own records
+    const user = req.user;
+    const createdBy = animal.created_by || animal.createdBy;
+    
+    if (user.role === 'user' && createdBy !== user.sub && createdBy !== null && createdBy !== undefined) {
+      return res.status(403).json({ error: 'Permission denied. You can only view your own records.' });
+    }
+    
+    // Map to frontend-compatible format
+    res.json({
+      id: animal.id,
+      createdAt: animal.created_at || animal.createdAt,
+      createdBy: animal.created_by || animal.createdBy,
+      updatedAt: animal.updated_at || animal.updatedAt,
+      updatedBy: animal.updated_by || animal.updatedBy,
+      status: animal.status || 'pending',
+      ownerName: animal.owner_name || animal.ownerName || '',
+      earTag: animal.ear_tag || animal.earTag || '',
+      location: animal.location || '',
+      notes: animal.notes || '',
+      predictedBreed: animal.predicted_breed || animal.predictedBreed || animal.breed || '',
+      breed: animal.breed || animal.predicted_breed || animal.predictedBreed || '',
+      ageMonths: animal.age_months || animal.ageMonths || null,
+      gender: animal.gender || '',
+      healthStatus: animal.health_status || animal.healthStatus || 'healthy',
+      vaccinationStatus: animal.vaccination_status || animal.vaccinationStatus || 'unknown',
+      weight: animal.weight || null,
+      imageUrls: animal.image_urls || animal.imageUrls || animal.images || [],
+      images: animal.image_urls || animal.imageUrls || animal.images || [],
+      gps: animal.gps || null,
+      capturedAt: animal.captured_at || animal.capturedAt || null,
+      species: animal.species || '',
+      approvedBy: animal.approved_by || animal.approvedBy || null,
+      approvedAt: animal.approved_at || animal.approvedAt || null
+    });
+  } catch (e) {
+    console.error('Error fetching animal:', e);
+    res.status(500).json({ error: 'Failed to fetch animal record' });
   }
 });
 
@@ -889,10 +942,16 @@ app.post('/api/animals', authMiddleware, upload.array('images', 6), async (req, 
       ageMonthsValue = Number(ageMonths || age_months);
     }
     
-    // Extract health and vaccination status - handle empty strings properly
-    const healthStatusValue = (healthStatus || health_status || '').trim() || 'healthy';
-    const vaccinationStatusValue = (vaccinationStatus || vaccination_status || '').trim() || 'unknown';
-    const weightValue = (weight || weight_kg || '').trim();
+    // Extract health and vaccination status - handle empty strings and FormData properly
+    // FormData sends empty strings, so we need to check for both undefined and empty string
+    const healthStatusRaw = healthStatus || health_status || '';
+    const healthStatusValue = (typeof healthStatusRaw === 'string' && healthStatusRaw.trim()) ? healthStatusRaw.trim() : 'healthy';
+    
+    const vaccinationStatusRaw = vaccinationStatus || vaccination_status || '';
+    const vaccinationStatusValue = (typeof vaccinationStatusRaw === 'string' && vaccinationStatusRaw.trim()) ? vaccinationStatusRaw.trim() : 'unknown';
+    
+    const weightRaw = weight || weight_kg || '';
+    const weightValue = (typeof weightRaw === 'string' && weightRaw.trim()) ? weightRaw.trim() : '';
     
     const animal = {
       id,

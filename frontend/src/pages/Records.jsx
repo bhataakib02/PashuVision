@@ -445,7 +445,17 @@ export default function Records() {
                           transition: 'all 0.2s ease'
                         }}
                         onClick={() => {
-                          alert(`Record Details:\n\nID: ${it.id}\nOwner: ${it.ownerName}\nLocation: ${it.location}\nBreed: ${it.predictedBreed || 'Not predicted'}\nAge: ${formatAge(it.ageMonths)}\nStatus: ${it.status}\nUser ID: ${it.createdBy ? it.createdBy.slice(0, 8) : 'N/A'}\nGPS: ${it.gps ? `${it.gps.lat}, ${it.gps.lng}` : 'Not available'}\nCaptured: ${it.capturedAt ? new Date(it.capturedAt).toLocaleString() : 'Not available'}`)
+                          const formatHealthStatus = (status) => {
+                            if (!status) return 'Not specified'
+                            return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')
+                          }
+                          
+                          const formatVaccinationStatus = (status) => {
+                            if (!status) return 'Not specified'
+                            return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')
+                          }
+                          
+                          alert(`Record Details:\n\nID: ${it.id}\nOwner: ${it.ownerName}\nLocation: ${it.location}\nBreed: ${it.predictedBreed || 'Not predicted'}\nAge: ${formatAge(it.ageMonths)}\nGender: ${it.gender || 'Not specified'}\nWeight: ${it.weight ? `${it.weight} kg` : 'Not specified'}\nHealth Status: ${formatHealthStatus(it.healthStatus)}\nVaccination Status: ${formatVaccinationStatus(it.vaccinationStatus)}\nStatus: ${it.status}\nUser ID: ${it.createdBy ? it.createdBy.slice(0, 8) : 'N/A'}\nGPS: ${it.gps ? `${it.gps.lat}, ${it.gps.lng}` : 'Not available'}\nCaptured: ${it.capturedAt ? new Date(it.capturedAt).toLocaleString() : 'Not available'}`)
                         }}
                         title="View Details"
                       >
