@@ -243,9 +243,9 @@ class PyTorchPredictor {
                                       !process.env.PYTORCH_SERVICE_URL.startsWith('http://127.0.0.1');
         
         if (hasExternalServiceUrl) {
-          throw new Error(`Python service at ${this.pythonServiceUrl} is not available. Please ensure the external service is deployed and running.`);
+          throw new Error(`Python service at ${this.pythonServiceUrl} is not available. Please ensure:\n1. Railway service is running and healthy\n2. PYTORCH_SERVICE_URL is set correctly in Vercel\n3. Check Railway logs for service status\n4. Wait 30-60 seconds if model is still loading`);
         } else {
-          throw new Error('Python service is not running. Please start the service: cd backend/models && python pytorch_service.py');
+          throw new Error('Python service is not running. For production: Set PYTORCH_SERVICE_URL in Vercel to your Railway service URL. For local: Start the service with: cd backend/models && python pytorch_service.py');
         }
       }
       
@@ -278,9 +278,9 @@ class PyTorchPredictor {
       // NO MOCK PREDICTIONS - Only use actual model
       // Reuse hasExternalServiceUrl calculated above to avoid redeclaration errors
       if (hasExternalServiceUrl) {
-        throw new Error(`No model available. Please configure PYTORCH_SERVICE_URL environment variable to point to your deployed Python service (current: ${this.pythonServiceUrl}).`);
+        throw new Error(`No model available. PYTORCH_SERVICE_URL is set to ${this.pythonServiceUrl} but service is not responding.\n\nTo fix:\n1. Verify Railway service is running: ${this.pythonServiceUrl}/health\n2. Check Railway service logs\n3. Ensure PYTORCH_SERVICE_URL in Vercel matches Railway public domain\n4. Wait 30-60 seconds if model is still loading on first request`);
       } else {
-        throw new Error('No model available. Please ensure best_model_convnext_base_acc0.7007.pth exists and Python service is running, or set PYTORCH_SERVICE_URL to an external service URL.');
+        throw new Error(`No model available. PYTORCH_SERVICE_URL not configured.\n\nTo fix:\n1. In Railway: Generate a public domain (Settings → Networking → + Generate Domain)\n2. In Vercel: Add environment variable PYTORCH_SERVICE_URL = your Railway URL\n3. Redeploy Vercel\n\nSee VERCEL_RAILWAY_SETUP.md for detailed instructions.`);
       }
     } catch (error) {
       console.error('❌ Prediction failed:', error.message);
@@ -301,8 +301,21 @@ class PyTorchPredictor {
       });
 
       if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Python service error (${response.status}): ${errorText}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        
+        // Better error messages for common issues
+        if (response.status === 503) {
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.status === 'loading' || errorData.model_loading) {
+              throw new Error('Model is still loading. Please wait 30-60 seconds and try again.');
+            }
+          } catch (e) {
+            // Not JSON, use original error
+          }
+        }
+        
+        throw new Error(`Python service error (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
