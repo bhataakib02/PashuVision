@@ -156,7 +156,13 @@ def load_model():
         model_url = os.environ.get('MODEL_DOWNLOAD_URL')
         
         # Default GitHub release URL if not set
-        if not model_url:
+        # Try quantized model first (smaller, faster)
+        quantized_url = os.environ.get('MODEL_DOWNLOAD_URL_QUANTIZED')
+        if quantized_url:
+            model_url = quantized_url
+            print("💡 Using quantized model URL (smaller size)", flush=True)
+        elif not model_url:
+            # Default to original model (user can override with MODEL_DOWNLOAD_URL)
             model_url = "https://github.com/bhataakib02/-PashuVision/releases/download/v1.0/best_model_convnext_base_acc0.7007.pth"
         
         # Remove corrupted file if it exists
