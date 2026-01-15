@@ -509,7 +509,254 @@ export default function Records() {
                             return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')
                           }
                           
-                          alert(`Record Details:\n\nID: ${it.id}\nOwner: ${it.ownerName}\nLocation: ${it.location}\nBreed: ${it.predictedBreed || 'Not predicted'}\nAge: ${formatAge(it.ageMonths)}\nGender: ${it.gender || 'Not specified'}\nWeight: ${it.weight ? `${it.weight} kg` : 'Not specified'}\nHealth Status: ${formatHealthStatus(it.healthStatus)}\nVaccination Status: ${formatVaccinationStatus(it.vaccinationStatus)}\nStatus: ${it.status}\nUser ID: ${it.createdBy ? it.createdBy.slice(0, 8) : 'N/A'}\nGPS: ${it.gps ? `${it.gps.lat}, ${it.gps.lng}` : 'Not available'}\nCaptured: ${it.capturedAt ? new Date(it.capturedAt).toLocaleString() : 'Not available'}`)
+                          // Create a styled modal popup
+                          const detailsModal = window.open('', '_blank', 'width=700,height=700,scrollbars=yes,resizable=yes')
+                          detailsModal.document.write(`
+                            <html>
+                              <head>
+                                <title>Record Details - ${it.id}</title>
+                                <style>
+                                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                                  body { 
+                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    padding: 20px;
+                                    min-height: 100vh;
+                                  }
+                                  .modal-container {
+                                    max-width: 650px;
+                                    margin: 0 auto;
+                                    background: white;
+                                    border-radius: 16px;
+                                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                                    overflow: hidden;
+                                  }
+                                  .modal-header {
+                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    color: white;
+                                    padding: 24px 28px;
+                                    font-size: 24px;
+                                    font-weight: 600;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                  }
+                                  .modal-header h2 {
+                                    font-size: 24px;
+                                    font-weight: 600;
+                                    margin: 0;
+                                  }
+                                  .close-btn {
+                                    background: rgba(255,255,255,0.2);
+                                    border: none;
+                                    color: white;
+                                    width: 36px;
+                                    height: 36px;
+                                    border-radius: 50%;
+                                    cursor: pointer;
+                                    font-size: 20px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    transition: all 0.2s;
+                                  }
+                                  .close-btn:hover {
+                                    background: rgba(255,255,255,0.3);
+                                    transform: scale(1.1);
+                                  }
+                                  .modal-body {
+                                    padding: 28px;
+                                    max-height: 500px;
+                                    overflow-y: auto;
+                                  }
+                                  .detail-row {
+                                    display: flex;
+                                    padding: 16px 0;
+                                    border-bottom: 1px solid #e9ecef;
+                                    align-items: flex-start;
+                                  }
+                                  .detail-row:last-child {
+                                    border-bottom: none;
+                                  }
+                                  .detail-label {
+                                    font-weight: 600;
+                                    color: #495057;
+                                    min-width: 160px;
+                                    font-size: 14px;
+                                    text-transform: uppercase;
+                                    letter-spacing: 0.5px;
+                                  }
+                                  .detail-value {
+                                    color: #212529;
+                                    font-size: 15px;
+                                    flex: 1;
+                                    word-break: break-word;
+                                  }
+                                  .badge {
+                                    display: inline-block;
+                                    padding: 4px 12px;
+                                    border-radius: 12px;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    text-transform: uppercase;
+                                    letter-spacing: 0.5px;
+                                  }
+                                  .badge-approved {
+                                    background: #d4edda;
+                                    color: #155724;
+                                  }
+                                  .badge-pending {
+                                    background: #fff3cd;
+                                    color: #856404;
+                                  }
+                                  .badge-rejected {
+                                    background: #f8d7da;
+                                    color: #721c24;
+                                  }
+                                  .badge-healthy {
+                                    background: #d1ecf1;
+                                    color: #0c5460;
+                                  }
+                                  .badge-sick {
+                                    background: #f8d7da;
+                                    color: #721c24;
+                                  }
+                                  .badge-injured {
+                                    background: #fff3cd;
+                                    color: #856404;
+                                  }
+                                  .badge-pregnant {
+                                    background: #e2e3f5;
+                                    color: #383d41;
+                                  }
+                                  .badge-up-to-date {
+                                    background: #d4edda;
+                                    color: #155724;
+                                  }
+                                  .badge-due {
+                                    background: #fff3cd;
+                                    color: #856404;
+                                  }
+                                  .badge-overdue {
+                                    background: #f8d7da;
+                                    color: #721c24;
+                                  }
+                                  .modal-footer {
+                                    padding: 20px 28px;
+                                    background: #f8f9fa;
+                                    border-top: 1px solid #e9ecef;
+                                    text-align: right;
+                                  }
+                                  .btn-close {
+                                    background: #667eea;
+                                    color: white;
+                                    border: none;
+                                    padding: 10px 24px;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: all 0.2s;
+                                  }
+                                  .btn-close:hover {
+                                    background: #5568d3;
+                                    transform: translateY(-1px);
+                                    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                                  }
+                                  ::-webkit-scrollbar {
+                                    width: 8px;
+                                  }
+                                  ::-webkit-scrollbar-track {
+                                    background: #f1f1f1;
+                                  }
+                                  ::-webkit-scrollbar-thumb {
+                                    background: #888;
+                                    border-radius: 4px;
+                                  }
+                                  ::-webkit-scrollbar-thumb:hover {
+                                    background: #555;
+                                  }
+                                </style>
+                              </head>
+                              <body>
+                                <div class="modal-container">
+                                  <div class="modal-header">
+                                    <h2>📋 Record Details</h2>
+                                    <button class="close-btn" onclick="window.close()">×</button>
+                                  </div>
+                                  <div class="modal-body">
+                                    <div class="detail-row">
+                                      <div class="detail-label">ID</div>
+                                      <div class="detail-value">${it.id}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Owner</div>
+                                      <div class="detail-value">${it.ownerName || 'N/A'}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Location</div>
+                                      <div class="detail-value">${it.location || 'N/A'}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Breed</div>
+                                      <div class="detail-value">${it.predictedBreed || 'Not predicted'}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Age</div>
+                                      <div class="detail-value">${formatAge(it.ageMonths)}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Gender</div>
+                                      <div class="detail-value">${it.gender ? (it.gender.charAt(0).toUpperCase() + it.gender.slice(1)) : 'Not specified'}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Weight</div>
+                                      <div class="detail-value">${it.weight ? `${it.weight} kg` : 'Not specified'}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Health Status</div>
+                                      <div class="detail-value">
+                                        <span class="badge badge-${(it.healthStatus || 'healthy').toLowerCase()}">
+                                          ${formatHealthStatus(it.healthStatus)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Vaccination Status</div>
+                                      <div class="detail-value">
+                                        <span class="badge badge-${(it.vaccinationStatus || 'unknown').replace(/_/g, '-').toLowerCase()}">
+                                          ${formatVaccinationStatus(it.vaccinationStatus)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Status</div>
+                                      <div class="detail-value">
+                                        <span class="badge badge-${(it.status || 'pending').toLowerCase()}">
+                                          ${(it.status || 'pending').charAt(0).toUpperCase() + (it.status || 'pending').slice(1)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">User ID</div>
+                                      <div class="detail-value">${it.createdBy ? it.createdBy.slice(0, 8) + '...' : 'N/A'}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">GPS Coordinates</div>
+                                      <div class="detail-value">${it.gps ? `${it.gps.lat}, ${it.gps.lng}` : 'Not available'}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                      <div class="detail-label">Captured At</div>
+                                      <div class="detail-value">${it.capturedAt ? new Date(it.capturedAt).toLocaleString() : 'Not available'}</div>
+                                    </div>
+                                  </div>
+                                  <div class="modal-footer">
+                                    <button class="btn-close" onclick="window.close()">Close</button>
+                                  </div>
+                                </div>
+                              </body>
+                            </html>
+                          `)
                         }}
                         title="View Details"
                       >
