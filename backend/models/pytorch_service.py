@@ -386,71 +386,58 @@ def load_model_background():
     finally:
         model_loading = False
 
-if __name__ == '__main__':
-    # Force stdout/stderr to be unbuffered for Railway logs
-    try:
-        sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
-        sys.stderr.reconfigure(line_buffering=True) if hasattr(sys.stderr, 'reconfigure') else None
-    except Exception:
-        pass
-    
-    # Suppress Flask/Werkzeug logging completely BEFORE starting
-    import logging
-    logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
-    logging.getLogger('flask').setLevel(logging.CRITICAL)
-    logging.basicConfig(level=logging.CRITICAL)
-    
-    # Disable Flask's default logging and warnings
-    import warnings
-    warnings.filterwarnings('ignore')
-    
-    # Start model loading in background thread with error handling
+# Start model loading in background when module is imported
+def start_model_loading():
+    """Start model loading in background thread"""
     try:
         model_thread = threading.Thread(target=load_model_background, daemon=True)
         model_thread.start()
     except Exception:
         pass  # Service will still start even if thread fails
+
+# Start model loading immediately when module loads
+start_model_loading()
+
+if __name__ == '__main__':
+    # Suppress all logging
+    import logging
+    logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
+    logging.getLogger('flask').setLevel(logging.CRITICAL)
+    logging.getLogger('gunicorn').setLevel(logging.ERROR)
+    logging.basicConfig(level=logging.CRITICAL)
     
-    # Start Flask server - wrap in try-except to prevent crashes
+    # Disable warnings
+    import warnings
+    warnings.filterwarnings('ignore')
+    
     port = int(os.environ.get('PORT', 5001))
     
-    # Use waitress or gunicorn for production, but for Railway, use Flask with proper config
-    # Ensure Flask server stays alive
-    import signal
-    
-    def signal_handler(sig, frame):
-        """Handle signals gracefully"""
-        pass  # Ignore signals to prevent unexpected exits
-    
-    # Register signal handlers
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-    
-    # Run Flask server in a loop to prevent exits
-    while True:
-        try:
-            app.run(
-                host='0.0.0.0',
-                port=port,
-                debug=False,
-                threaded=True,
-                use_reloader=False,
-                use_debugger=False
-            )
-        except OSError as e:
-            if "Address already in use" in str(e):
-                import time
-                time.sleep(2)
-                continue  # Retry after a delay
-            else:
-                import time
-                time.sleep(5)
-                continue  # Retry on other OSErrors
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            # Log error and retry - don't exit
-            import time
-            time.sleep(5)
-            continue  # Keep trying to run the server
+    # Use gunicorn for production (more stable than Flask dev server)
+    try:
+        import gunicorn.app.wsgiapp as wsgi
+        import sys
+        
+        # Configure gunicorn
+        sys.argv = [
+            'gunicorn',
+            '--bind', f'0.0.0.0:{port}',
+            '--workers', '1',
+            '--threads', '2',
+            '--timeout', '120',
+            '--access-logfile', '-',
+            '--error-logfile', '-',
+            '--log-level', 'error',
+            '--preload',
+            'pytorch_service:app'
+        ]
+        wsgi.run()
+    except ImportError:
+        # Fallback to Flask if gunicorn not available
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=False,
+            threaded=True,
+            use_reloader=False
+        )
 

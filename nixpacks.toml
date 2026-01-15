@@ -9,7 +9,7 @@ nixPkgs = ["python311", "python311Packages.pip", "python311Packages.virtualenv"]
 cmds = [
   "python -m venv /app/venv",
   "/app/venv/bin/pip install --no-cache-dir --upgrade pip",
-  "/app/venv/bin/pip install --no-cache-dir 'numpy<2.0' 'typing-extensions' 'sympy' 'networkx' 'jinja2' 'fsspec' 'filelock' 'certifi' 'charset-normalizer' 'idna' 'urllib3' 'requests' 'pillow>=10.0.0'",
+  "/app/venv/bin/pip install --no-cache-dir 'numpy<2.0' 'typing-extensions' 'sympy' 'networkx' 'jinja2' 'fsspec' 'filelock' 'certifi' 'charset-normalizer' 'idna' 'urllib3' 'requests' 'pillow>=10.0.0' 'gunicorn==21.2.0'",
   "/app/venv/bin/pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.1.0+cpu torchvision==0.16.0+cpu --no-deps",
   "/app/venv/bin/pip install --no-cache-dir -r backend/models/requirements.txt"
 ]
