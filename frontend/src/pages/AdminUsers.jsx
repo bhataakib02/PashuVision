@@ -630,9 +630,9 @@ export default function AdminUsers() {
               <div className="stack" style={{ gap: '20px' }}>
                 {/* Profile Photo */}
                 <div style={{ textAlign: 'center' }}>
-                  {viewingUser.photoUrl ? (
+                  {(viewingUser.photoUrl || viewingUser.photoBase64) ? (
                     <img 
-                      src={viewingUser.photoUrl} 
+                      src={viewingUser.photoBase64 || (viewingUser.photoUrl?.startsWith('data:') ? viewingUser.photoUrl : (viewingUser.photoUrl?.startsWith('/uploads/') ? `${window.location.origin}${viewingUser.photoUrl}` : viewingUser.photoUrl))} 
                       alt="Profile" 
                       style={{
                         width: '150px',
@@ -644,8 +644,10 @@ export default function AdminUsers() {
                         display: 'block'
                       }}
                       onError={(e) => {
+                        console.error('Error loading user photo:', viewingUser.photoUrl)
                         e.target.style.display = 'none'
-                        e.target.nextSibling.style.display = 'flex'
+                        const placeholder = e.target.nextElementSibling
+                        if (placeholder) placeholder.style.display = 'flex'
                       }}
                     />
                   ) : null}
@@ -654,7 +656,7 @@ export default function AdminUsers() {
                     height: '150px',
                     borderRadius: '12px',
                     background: '#e0e0e0',
-                    display: viewingUser.photoUrl ? 'none' : 'flex',
+                    display: (viewingUser.photoUrl || viewingUser.photoBase64) ? 'none' : 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '64px',

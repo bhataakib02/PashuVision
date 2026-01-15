@@ -38,6 +38,9 @@ export default function Profile() {
         return r.json()
       })
       .then(p => {
+        console.log('Profile loaded:', p)
+        console.log('Photo URL:', p.photoUrl)
+        console.log('Photo Base64:', p.photoBase64 ? 'Present' : 'Not present')
         setProfile(p)
         setName(p.name || '')
         setEmail(p.email || '')
@@ -154,16 +157,20 @@ export default function Profile() {
                 />
               ) : (profile?.photoUrl || profile?.photoBase64) ? (
                 <img 
-                  src={profile.photoBase64 || (profile.photoUrl?.startsWith('data:') ? profile.photoUrl : `${profile.photoUrl}?t=${Date.now()}`)} 
+                  src={profile.photoBase64 || (profile.photoUrl?.startsWith('data:') ? profile.photoUrl : (profile.photoUrl?.startsWith('/uploads/') ? `${window.location.origin}${profile.photoUrl}?t=${Date.now()}` : `${profile.photoUrl}?t=${Date.now()}`))} 
                   alt="avatar" 
                   onError={(e) => {
-                    console.error('Error loading profile photo:', e)
+                    console.error('Error loading profile photo. URL:', profile.photoUrl || profile.photoBase64)
+                    console.error('Error event:', e)
                     e.target.style.display = 'none'
                     const placeholder = e.target.nextElementSibling
-                    if (placeholder) placeholder.style.display = 'flex'
+                    if (placeholder) {
+                      placeholder.style.display = 'flex'
+                      console.log('Showing placeholder instead')
+                    }
                   }}
                   onLoad={() => {
-                    console.log('Profile photo loaded successfully')
+                    console.log('Profile photo loaded successfully from:', profile.photoBase64 ? 'base64' : profile.photoUrl)
                   }}
                   style={{ 
                     width: isMobile ? 150 : 200, 
