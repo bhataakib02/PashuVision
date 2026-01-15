@@ -34,6 +34,11 @@ import threading
 app = Flask(__name__)
 CORS(app)
 
+# Disable Flask's default request logging to reduce log volume
+import logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
 # Global model variable
 model = None
 model_info = None
