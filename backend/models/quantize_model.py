@@ -37,9 +37,12 @@ def quantize_model(input_path, output_path):
         else:
             state_dict = checkpoint
         
-        # Get num_classes from checkpoint or use default
-        num_classes = 40
-        if isinstance(checkpoint, dict):
+        # Get num_classes from checkpoint - check head.fc.weight first (most accurate)
+        num_classes = 40  # default
+        if 'head.fc.weight' in state_dict:
+            num_classes = state_dict['head.fc.weight'].shape[0]
+            print(f"🔍 Detected {num_classes} classes from checkpoint head layer", flush=True)
+        elif isinstance(checkpoint, dict):
             if 'num_classes' in checkpoint:
                 num_classes = checkpoint['num_classes']
             elif 'config' in checkpoint and isinstance(checkpoint['config'], dict):
