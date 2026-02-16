@@ -325,7 +325,7 @@ For issues, questions, or contributions, please open an issue on GitHub.
 ### Core Contributors
 - **Mohammad Aakib Bhat** ([@bhataakib02](https://github.com/bhataakib02)) - Full Stack Web Development
 - **Haroon Iqbal** ([@Haroon-89](https://github.com/Haroon-89)) - AI/ML Development & Data Science
-- **Akeem Ali** ([@Akeem786](https://github.com/Akeem786)) - DataSet Collector
+- **Akeem Ali** ([@Akeem786](https://github.com/Akeem786)) - – Livestock Domain Research & Practical Inputs
 - 
 
 ### Open Source Libraries & Tools
