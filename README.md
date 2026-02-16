@@ -323,8 +323,10 @@ For issues, questions, or contributions, please open an issue on GitHub.
 ## Acknowledgments
 
 ### Core Contributors
-- **Haroon Iqbal** ([@Haroon-89](https://github.com/Haroon-89)) - AI/ML Development & Data Science
 - **Mohammad Aakib Bhat** ([@bhataakib02](https://github.com/bhataakib02)) - Full Stack Web Development
+- **Haroon Iqbal** ([@Haroon-89](https://github.com/Haroon-89)) - AI/ML Development & Data Science
+- **Akeem Ali** ([@Akeem786](https://github.com/Akeem786)) 
+- 
 
 ### Open Source Libraries & Tools
 - ONNX Runtime team for AI inference
